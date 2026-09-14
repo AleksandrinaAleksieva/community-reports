@@ -332,30 +332,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
       <div style="margin-bottom:18px">
         <div class="card-label" style="margin-bottom:12px">Credentials</div>
-        <div class="sep" style="margin-top:0">Shelly Community</div>
-        <div class="field">
-          <label>API Key</label>
-          <input type="password" id="nodebb_key" placeholder="Invision Community API key">
-        </div>
-        <div class="sep">Atlassian (Confluence + Jira)</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">API keys are loaded automatically from the server. Only your personal Atlassian API token is needed here.</p>
+        <div class="sep" style="margin-top:0">Atlassian</div>
         <div class="row2">
           <div class="field"><label>Email</label><input type="text" id="atl_email" placeholder="you@shellyusa.com"></div>
           <div class="field">
             <label>API Token</label>
-            <input type="password" id="atl_token" placeholder="Atlassian API token">
-            <p class="hint">id.atlassian.com → Security → API tokens</p>
+            <input type="password" id="atl_token" placeholder="Your personal Atlassian token">
+            <p class="hint"><a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank">Generate at id.atlassian.com</a></p>
           </div>
         </div>
         <div class="row2">
           <div class="field"><label>Jira Base URL</label><input type="text" id="jira_url" value="https://shellyusa.atlassian.net"></div>
           <div class="field"><label>Jira Project Key</label><input type="text" id="jira_project" placeholder="QAT"></div>
         </div>
-        <div class="sep">Google Gemini</div>
-        <div class="field">
-          <label>Gemini API Key</label>
-          <input type="password" id="gemini_key" placeholder="AIza...">
-          <p class="hint">Free at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>
-        </div>
+        <div class="sep">Advanced (auto-loaded from server)</div>
+        <div class="field"><label>Community API Key</label><input type="password" id="nodebb_key" placeholder="Auto-loaded from server"></div>
+        <div class="field"><label>Gemini API Key</label><input type="password" id="gemini_key" placeholder="Auto-loaded from server"></div>
         <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
           <button class="btn-save" onclick="saveCreds()">💾 Save credentials</button>
           <button class="btn-clr" onclick="clearCreds()">Clear</button>
@@ -541,6 +534,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
+// Auto-detect proxy URL — works on localhost and on Pi
+const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '${PROXY_BASE}'
+  : `http://${window.location.hostname}:5001`;
+
 let analysis = null;
 let meta     = {};
 
@@ -703,8 +701,27 @@ function flash(id, msg, ms=2500) {
 document.addEventListener('DOMContentLoaded', () => {
   loadCreds();
   loadPrompt();
-  const ta = document.getElementById('onboarding-msg');
-  if (ta) ta.value = ONBOARDING_MSG;
+  // Auto-load credentials from server config (Pi)
+  fetch(`${PROXY_BASE}/config`)
+    .then(r => r.json())
+    .then(cfg => {
+      // Only fill fields that are empty (don't override manually saved creds)
+      const fields = {
+        nodebb_key:  cfg.ips_key,
+        gemini_key:  cfg.gemini_key,
+        atl_email:   cfg.atl_email,
+        atl_token:   cfg.atl_token,
+        jira_url:    cfg.jira_url,
+        jira_project: cfg.jira_project,
+      };
+      let loaded = false;
+      Object.entries(fields).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el && val && !el.value) { el.value = val; loaded = true; }
+      });
+      if (loaded) flash('cred-status', '🔑 Loaded from server', 3000);
+    })
+    .catch(() => {}); // silently ignore if not on Pi
   CRED_IDS.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', saveCreds);
@@ -761,7 +778,7 @@ function parseUrl(url) {
 async function fetchPosts(topicId, apiKey) {
   const posts = []; let page = 1;
   while (true) {
-    const r = await fetch(`http://localhost:5001/proxy/topic/${topicId}/posts?page=${page}`, {
+    const r = await fetch(`${PROXY_BASE}/proxy/topic/${topicId}/posts?page=${page}`, {
       headers: { 'X-IPS-Key': apiKey }
     });
     if (!r.ok) throw new Error(`Community API ${r.status} ${r.statusText}`);
@@ -781,7 +798,7 @@ function analyze(posts, deviceName, fwVersion) {
   const key = document.getElementById('gemini_key').value.trim();
   if (!key) return Promise.reject(new Error('Please enter your Gemini API key'));
   return new Promise((resolve, reject) => {
-    fetch('http://localhost:5001/analyze-stream', {
+    fetch(`${PROXY_BASE}/analyze-stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ posts, gemini_key: key, device_name: deviceName, fw_version: fwVersion, master_prompt: getMasterPrompt() })
@@ -790,7 +807,7 @@ function analyze(posts, deviceName, fwVersion) {
     .then(({ job_id, total_batches }) => {
       setProgress(5, `Analyzing — ${total_batches} batches`);
       logLine(`Analyzing ${posts.length} posts in ${total_batches} batches...`, 'linf');
-      const es = new EventSource(`http://localhost:5001/analyze-progress/${job_id}`);
+      const es = new EventSource(`${PROXY_BASE}/analyze-progress/${job_id}`);
       es.onmessage = e => {
         const m = JSON.parse(e.data);
         if (m.type === 'batch') {
@@ -944,7 +961,7 @@ async function createJira(item, key='bugs') {
     ...(isIdea ? { duedate: dueDateStr } : {}),
   };
 
-  const r = await fetch('http://localhost:5001/jira/issue', {
+  const r = await fetch(`${PROXY_BASE}/jira/issue`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': auth },
     body: JSON.stringify({ fields })
@@ -962,7 +979,7 @@ async function createJira(item, key='bugs') {
   if (window._bugDetailFieldId === undefined) {
     window._bugDetailFieldId = null;
     try {
-      const fr = await fetch(`http://localhost:5001/jira/issue-fields/${issueKey}`, {
+      const fr = await fetch(`${PROXY_BASE}/jira/issue-fields/${issueKey}`, {
         headers: { 'Authorization': auth }
       });
       const fieldMap = await fr.json();
@@ -977,7 +994,7 @@ async function createJira(item, key='bugs') {
   }
   if (window._bugDetailFieldId) {
     try {
-      await fetch(`http://localhost:5001/jira/${issueKey}`, {
+      await fetch(`${PROXY_BASE}/jira/${issueKey}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': auth },
         body: JSON.stringify({ fields: { [window._bugDetailFieldId]: null } })
@@ -991,7 +1008,7 @@ async function createJira(item, key='bugs') {
   for (const imgUrl of imgs) {
     const imgName = imgUrl.split('/').pop().split('?')[0] || 'screenshot.png';
     try {
-      const ar = await fetch(`http://localhost:5001/jira-attach/${issueKey}`, {
+      const ar = await fetch(`${PROXY_BASE}/jira-attach/${issueKey}`, {
         method: 'POST',
         headers: { 'Authorization': auth, 'X-Image-Url': imgUrl, 'X-Image-Name': imgName }
       });
@@ -1240,7 +1257,7 @@ function closePreview() { document.getElementById('preview-overlay').classList.r
 async function publishConfluence() {
   if (!analysis) { alert('Run analysis first.'); return; }
   const SPACE  = 'TTC', PARENT = '2574516248';
-  const PROXY  = 'http://localhost:5001/confluence';
+  const PROXY  = `${PROXY_BASE}/confluence`;
   const email  = document.getElementById('atl_email').value.trim();
   const token  = document.getElementById('atl_token').value.trim();
   if (!email || !token) { alert('Please fill in Atlassian credentials.'); return; }
@@ -1352,7 +1369,7 @@ async function loadMembers() {
     let page = 1, totalPages = 1;
     while (page <= totalPages) {
       statusEl.textContent = `Fetching page ${page}${totalPages > 1 ? ' of ' + totalPages : ''}...`;
-      const r = await fetch(`http://localhost:5001/proxy/members?page=${page}&perPage=100`, {
+      const r = await fetch(`${PROXY_BASE}/proxy/members?page=${page}&perPage=100`, {
         headers: { 'X-IPS-Key': apiKey }
       });
       if (!r.ok) throw new Error(`API error ${r.status} — check API key permissions`);
