@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shelly Community Reports</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#0B84FF;--blue-d:#0066CC;--blue-light:#EBF5FF;
+  --bg:#f5f5f3;--surf:#fff;--border:#e2e2de;
+  --text:#1a1a18;--muted:#6b6b67;--radius:10px;
+  --jira:#0052cc;--conf:#0065ff;--green:#1a7a3e;
+  --mono:"SF Mono","Fira Code",monospace;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --accent:var(--blue);--accent-d:var(--blue-d);--accent-light:var(--blue-light);
+}
+[data-theme="dark"]{
+  --bg:#111113;--surf:#1e1e22;--border:#2e2e34;
+  --text:#f0f0ee;--muted:#888884;
+  --shadow:0 1px 3px rgba(0,0,0,.4);
+  --blue-light:#0a1f35;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;transition:background .2s,color .2s}
+
+/* Header */
+header{width:100%;background:var(--blue);padding:16px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(11,132,255,.25)}
+.header-left{display:flex;align-items:center;gap:12px}
+.shelly-logo{width:32px;height:32px;flex-shrink:0}
+.header-titles h1{font-size:18px;font-weight:700;color:#fff;letter-spacing:-.2px;line-height:1.2}
+.header-titles .sub{font-size:11px;color:rgba(255,255,255,.75);margin-top:1px}
+.header-right{display:flex;align-items:center;gap:8px}
+.icon-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:#fff;transition:background .15s;line-height:1}
+.icon-btn:hover{background:rgba(255,255,255,.3)}
+
+/* Content wrapper */
+.content{width:100%;max-width:720px;padding:0 16px 32px}
+
+/* Page tabs */
+.page-tabs{display:flex;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px;box-shadow:var(--shadow)}
+.page-tab{flex:1;padding:10px 4px;font-size:12px;font-weight:600;background:none;border:none;border-right:1px solid var(--border);cursor:pointer;color:var(--muted);transition:all .15s}
+.page-tab:last-child{border-right:none}
+.page-tab.active{background:var(--blue);color:#fff}
+.page-tab:hover:not(.active):not(:disabled){background:var(--blue-light);color:var(--blue)}
+.page-tab:disabled{opacity:.4;cursor:not-allowed}
+
+.page{display:none;width:100%}
+.page.active{display:block}
+
+/* Cards */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:14px}
+.sep{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);opacity:.7;margin:14px 0 10px}
+.sep:first-child{margin-top:0}
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,132,255,.1)}
+.hint{font-size:11px;color:var(--muted);margin-top:3px}
+.hint a{color:var(--blue);text-decoration:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+/* Buttons */
+.btn-run{width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-bottom:12px}
+.btn-run:hover:not(:disabled){background:var(--blue-d)}
+.btn-run:disabled{opacity:.45;cursor:not-allowed}
+.btn-conf{flex:1;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s}
+.btn-conf:hover:not(:disabled){background:var(--blue-d)}
+.btn-conf:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{padding:10px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-ghost:hover{background:var(--bg)}
+.btn-save{flex:1;padding:7px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-save:hover{background:var(--blue-d)}
+.btn-clr{padding:7px 12px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer}
+.btn-jira{padding:4px 10px;background:var(--jira);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s;flex-shrink:0}
+.btn-jira:hover:not(:disabled){background:#0041a8}
+.btn-jira:disabled{opacity:.5;cursor:not-allowed}
+.btn-jira.ok{background:var(--green)}
+.btn-open-sel{padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s}
+.btn-open-sel:hover:not(:disabled){background:var(--blue-d)}
+.btn-open-sel:disabled{opacity:.4;cursor:not-allowed}
+
+/* Progress */
+#status{display:none;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+#status.on{display:block}
+.prog-hdr{padding:12px 16px 0;display:flex;align-items:center;justify-content:space-between}
+.prog-lbl{font-size:12px;font-weight:600}
+.prog-pct{font-size:12px;color:var(--blue);font-weight:700}
+.prog-track{margin:8px 16px 0;height:5px;background:var(--border);border-radius:99px;overflow:hidden}
+.prog-bar{height:100%;width:0%;background:var(--blue);border-radius:99px;transition:width .4s ease}
+#log{font-family:var(--mono);font-size:11.5px;padding:10px 16px 14px;max-height:130px;overflow-y:auto;line-height:1.8;color:var(--muted);white-space:pre-wrap}
+.lok{color:var(--green)}.lerr{color:#c02020}.linf{color:var(--text)}
+
+/* Result tabs */
+.rtabs{display:flex;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+.rtab{flex:1;padding:9px 4px;font-size:12px;font-weight:600;background:none;border:none;border-right:1px solid var(--border);cursor:pointer;color:var(--muted);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.rtab:last-child{border-right:none}
+.rtab.active{background:var(--blue);color:#fff}
+.rtab:hover:not(.active){background:var(--blue-light);color:var(--blue)}
+.badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--border);color:var(--muted)}
+.rtab.active .badge{background:rgba(255,255,255,.25);color:#fff}
+.rpanel{display:none}.rpanel.active{display:block}
+
+/* Feedback items */
+.fb-item{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.fb-item:last-child{border-bottom:none}
+.fb-text{flex:1;font-size:13px;line-height:1.6}
+.fb-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.fb-empty{padding:14px 16px;font-size:13px;color:var(--muted);font-style:italic}
+.cb{width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:var(--blue);cursor:pointer}
+
+/* Toolbar */
+.toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--blue-light)}
+.toolbar-lbl{font-size:12px;font-weight:600;flex:1}
+
+/* Summary */
+.summary{background:var(--blue-light);border:1px solid rgba(11,132,255,.2);border-radius:8px;padding:14px 16px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--text)}
+[data-theme="dark"] .summary{background:#0a1f35;border-color:rgba(11,132,255,.3)}
+.summary-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--blue);margin-bottom:6px}
+
+/* Action row */
+.arow{display:flex;gap:10px;margin-top:4px}
+
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--surf);border-radius:var(--radius);width:100%;max-width:700px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-hdr{background:var(--blue);border-bottom:1px solid var(--border)}
+.modal-hdr-inner{padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:14px;font-weight:700;color:#fff}
+.modal-close{font-size:22px;color:rgba(255,255,255,.8);background:none;border:none;cursor:pointer;line-height:1}
+.modal-close:hover{color:#fff}
+.modal-body{padding:20px;overflow-y:auto;flex:1;font-size:13px;line-height:1.7}
+.modal-body h2{font-size:13px;font-weight:700;margin:14px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px;color:var(--blue)}
+.modal-body h2:first-child{margin-top:0}
+.modal-body ul{padding-left:18px}
+.modal-body li{margin-bottom:4px}
+.modal-meta{font-size:12px;color:var(--muted);margin-bottom:12px}
+.modal-summary{background:var(--blue-light);border-left:3px solid var(--blue);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:13px}
+[data-theme="dark"] .modal-summary{background:#0a1f35}
+.modal-body table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+.modal-body th,.modal-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.modal-body th{background:var(--blue-light);font-weight:600;color:var(--blue)}
+.modal-ftr{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap;z-index:999}
+#toast.on{opacity:1}
+
+/* Jira links */
+.jira-link-row{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:10px;align-items:center}
+.jira-link-row:last-child{border-bottom:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;transition:background .2s,color .2s}
+
+/* Header — full-width Shelly red bar */
+.header-left{display:flex;align-items:center;gap:12px}
+.shelly-logo{width:32px;height:32px;flex-shrink:0}
+.header-titles h1{font-size:18px;font-weight:700;color:#fff;letter-spacing:-.2px;line-height:1.2}
+.header-titles .sub{font-size:11px;color:rgba(255,255,255,.75);margin-top:1px}
+.header-right{display:flex;align-items:center;gap:8px}
+.icon-btn{
+  background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);
+  border-radius:8px;padding:6px 10px;font-size:14px;
+  cursor:pointer;color:#fff;transition:background .15s;line-height:1;
+}
+.icon-btn:hover{background:rgba(255,255,255,.3)}
+
+/* Content wrapper */
+.content{width:100%;max-width:720px;padding:0 16px 32px}
+
+/* Page tabs */
+.page-tabs{display:flex;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px;box-shadow:var(--shadow)}
+.page-tab{flex:1;padding:10px 4px;font-size:12px;font-weight:600;background:none;border:none;border-right:1px solid var(--border);cursor:pointer;color:var(--muted);transition:all .15s}
+.page-tab:last-child{border-right:none}
+.page-tab.active{background:var(--blue);color:#fff}
+.page-tab:hover:not(.active):not(:disabled){background:var(--blue-light);color:var(--blue)}
+.page-tab:disabled{opacity:.4;cursor:not-allowed}
+
+.page{display:none;width:100%}
+.page.active{display:block}
+
+/* Cards */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:14px}
+.sep{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);opacity:.7;margin:14px 0 10px}
+.sep:first-child{margin-top:0}
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,132,255,.1)}
+.hint{font-size:11px;color:var(--muted);margin-top:3px}
+.hint a{color:var(--blue);text-decoration:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+/* Buttons */
+.btn-run{width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;margin-bottom:12px;letter-spacing:.1px}
+.btn-run:hover:not(:disabled){background:var(--blue-d)}
+.btn-run:disabled{opacity:.45;cursor:not-allowed}
+.btn-conf{flex:1;padding:10px;background:var(--conf);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s}
+.btn-conf:hover:not(:disabled){background:#0041a8}
+.btn-conf:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{padding:10px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-ghost:hover{background:var(--bg)}
+.btn-save{flex:1;padding:7px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-save:hover{background:var(--blue-d)}
+.btn-clr{padding:7px 12px;background:none;color:var(--muted);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer}
+.btn-jira{padding:4px 10px;background:var(--jira);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s;flex-shrink:0}
+.btn-jira:hover:not(:disabled){background:#0041a8}
+.btn-jira:disabled{opacity:.5;cursor:not-allowed}
+.btn-jira.ok{background:var(--green)}
+.btn-open-sel{padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s}
+.btn-open-sel:hover:not(:disabled){background:var(--blue-d)}
+.btn-open-sel:disabled{opacity:.4;cursor:not-allowed}
+
+/* Progress */
+#status{display:none;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+#status.on{display:block}
+.prog-hdr{padding:12px 16px 0;display:flex;align-items:center;justify-content:space-between}
+.prog-lbl{font-size:12px;font-weight:600}
+.prog-pct{font-size:12px;color:var(--blue);font-weight:700}
+.prog-track{margin:8px 16px 0;height:5px;background:var(--border);border-radius:99px;overflow:hidden}
+.prog-bar{height:100%;width:0%;background:var(--blue);border-radius:99px;transition:width .4s ease}
+#log{font-family:var(--mono);font-size:11.5px;padding:10px 16px 14px;max-height:130px;overflow-y:auto;line-height:1.8;color:var(--muted);white-space:pre-wrap}
+.lok{color:var(--green)}.lerr{color:#c02020}.linf{color:var(--text)}
+
+/* Result tabs */
+.rtabs{display:flex;background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+.rtab{flex:1;padding:9px 4px;font-size:12px;font-weight:600;background:none;border:none;border-right:1px solid var(--border);cursor:pointer;color:var(--muted);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.rtab:last-child{border-right:none}
+.rtab.active{background:var(--blue);color:#fff}
+.rtab:hover:not(.active){background:var(--blue-light);color:var(--blue)}
+.badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--border);color:var(--muted)}
+.rtab.active .badge{background:rgba(255,255,255,.25);color:#fff}
+.rpanel{display:none}.rpanel.active{display:block}
+
+/* Feedback items */
+.fb-item{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.fb-item:last-child{border-bottom:none}
+.fb-text{flex:1;font-size:13px;line-height:1.6}
+.fb-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.fb-empty{padding:14px 16px;font-size:13px;color:var(--muted);font-style:italic}
+.cb{width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:var(--blue);cursor:pointer}
+
+/* Toolbar */
+.toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--blue-light)}
+.toolbar-lbl{font-size:12px;font-weight:600;flex:1}
+
+/* Summary */
+.summary{background:var(--blue-light);border:1px solid rgba(232,51,28,.2);border-radius:8px;padding:14px 16px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--text)}
+[data-theme="dark"] .summary{background:#2a1208;border-color:rgba(232,51,28,.3)}
+.summary-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--blue);margin-bottom:6px}
+
+/* Action row */
+.arow{display:flex;gap:10px;margin-top:4px}
+
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--surf);border-radius:var(--radius);width:100%;max-width:700px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-hdr{padding:0;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--blue)}
+.modal-hdr-inner{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;width:100%}
+.modal-title{font-size:14px;font-weight:700;color:#fff}
+.modal-close{font-size:22px;color:rgba(255,255,255,.8);background:none;border:none;cursor:pointer;line-height:1}
+.modal-close:hover{color:#fff}
+.modal-body{padding:20px;overflow-y:auto;flex:1;font-size:13px;line-height:1.7}
+.modal-body h2{font-size:13px;font-weight:700;margin:14px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px;color:var(--blue)}
+.modal-body h2:first-child{margin-top:0}
+.modal-body ul{padding-left:18px}
+.modal-body li{margin-bottom:4px}
+.modal-meta{font-size:12px;color:var(--muted);margin-bottom:12px}
+.modal-summary{background:var(--blue-light);border-left:3px solid var(--blue);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:13px}
+[data-theme="dark"] .modal-summary{background:#2a1208}
+.modal-body table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+.modal-body th,.modal-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.modal-body th{background:var(--blue-light);font-weight:600;color:var(--blue)}
+.modal-ftr{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap;z-index:999}
+#toast.on{opacity:1}
+
+/* Jira links */
+.jira-link-row{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:10px;align-items:center}
+.jira-link-row:last-child{border-bottom:none}
+</style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <svg class="shelly-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="50" fill="rgba(255,255,255,0.2)"/>
+      <text x="50" y="67" text-anchor="middle" font-family="-apple-system,sans-serif" font-size="44" font-weight="900" fill="#fff">S</text>
+    </svg>
+    <div class="header-titles">
+      <h1>Shelly Community Reports</h1>
+      <div class="sub">Fetch QA feedback · analyze with AI · push to Jira &amp; Confluence</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+    <button class="icon-btn" onclick="toggleTheme()" title="Toggle dark/light mode" id="theme-btn">🌙</button>
+  </div>
+</header>
+
+<div class="content">
+
+<div class="page-tabs" id="page-tabs">
+  <button class="page-tab active" onclick="goPage('setup',this)">🔍 Analyze</button>
+  <button class="page-tab" onclick="goPage('members',this)" id="tab-members">👤 Members</button>
+  <button class="page-tab" onclick="goPage('bugs',this)" id="tab-bugs" disabled>🐛 Bugs <span id="cnt-bugs"></span></button>
+  <button class="page-tab" onclick="goPage('results',this)" id="tab-results" disabled>💡 Improvements</button>
+  <button class="page-tab" onclick="goPage('applicants',this)" id="tab-applicants">👥 External QAs</button>
+  <button class="page-tab" onclick="goPage('confluence',this)" id="tab-confluence" disabled>📄 Confluence Report</button>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="settings-overlay">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-hdr">
+      <div class="modal-hdr-inner">
+        <span class="modal-title">Settings</span>
+        <button class="modal-close" onclick="closeSettings()">×</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:20px">
+
+      <div style="margin-bottom:18px">
+        <div class="card-label" style="margin-bottom:12px">Credentials</div>
+        <div class="sep" style="margin-top:0">Shelly Community</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="nodebb_key" placeholder="Invision Community API key">
+        </div>
+        <div class="sep">Atlassian (Confluence + Jira)</div>
+        <div class="row2">
+          <div class="field"><label>Email</label><input type="text" id="atl_email" placeholder="you@shellyusa.com"></div>
+          <div class="field">
+            <label>API Token</label>
+            <input type="password" id="atl_token" placeholder="Atlassian API token">
+            <p class="hint">id.atlassian.com → Security → API tokens</p>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Jira Base URL</label><input type="text" id="jira_url" value="https://shellyusa.atlassian.net"></div>
+          <div class="field"><label>Jira Project Key</label><input type="text" id="jira_project" placeholder="QAT"></div>
+        </div>
+        <div class="sep">Google Gemini</div>
+        <div class="field">
+          <label>Gemini API Key</label>
+          <input type="password" id="gemini_key" placeholder="AIza...">
+          <p class="hint">Free at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <button class="btn-save" onclick="saveCreds()">💾 Save credentials</button>
+          <button class="btn-clr" onclick="clearCreds()">Clear</button>
+          <span id="cred-status" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:18px">
+        <div class="card-label" style="margin-bottom:12px">Master Prompt</div>
+        <div class="field">
+          <label>Analysis instructions <span style="font-weight:400;color:var(--muted)">— guides Gemini categorization</span></label>
+          <textarea id="master_prompt" rows="10" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:7px;font-size:11.5px;font-family:var(--mono);background:var(--bg);color:var(--text);outline:none;resize:vertical;line-height:1.6;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <button class="btn-save" onclick="savePrompt()">💾 Save prompt</button>
+          <button class="btn-clr" onclick="resetPrompt()">Reset to default</button>
+          <span id="prompt-status" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-ftr">
+      <button class="btn-conf" onclick="closeSettings()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div class="page active" id="page-setup">
+  <div class="card">
+    <div class="card-label">Feedback topic</div>
+    <div class="field">
+      <label>Topic URL</label>
+      <input type="url" id="topic_url" placeholder="https://community.shelly.cloud/topic/14315-shelly-camera-feedback/">
+    </div>
+    <div class="row3" style="margin-top:12px">
+      <div class="field">
+        <label>Device name <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <input type="text" id="device_name" placeholder="Inferred from URL">
+      </div>
+      <div class="field">
+        <label>Package <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <input type="text" id="package_label" placeholder="e.g. May 2026">
+      </div>
+      <div class="field">
+        <label>Firmware version <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <input type="text" id="fw_version" placeholder="e.g. 1.4.2">
+      </div>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <div class="field">
+        <label>Devices sent <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <input type="number" id="devices_sent" placeholder="e.g. 20" min="1">
+        <p class="hint">Used to calculate participation rate in the Confluence report</p>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-run" id="run-btn" onclick="runAnalysis()">Fetch &amp; analyze feedback</button>
+
+  <div id="status">
+    <div class="prog-hdr">
+      <span class="prog-lbl" id="prog-lbl">Starting...</span>
+      <span class="prog-pct" id="prog-pct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-bar" id="prog-bar"></div></div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<!-- MEMBERS -->
+<div class="page" id="page-members">
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Filter and browse all registered Shelly Community forum users by country, timezone, or email domain.</div>
+  <div class="card">
+    <div class="card-label">Community members by country</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end">
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label>Filter by country</label>
+        <input type="text" id="members-country" placeholder="e.g. France" oninput="filterMembers()">
+      </div>
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label>Filter by email domain</label>
+        <input type="text" id="members-domain" placeholder="e.g. .fr or gmail.com" oninput="filterMembers()">
+      </div>
+      <button class="btn-conf" style="flex:0 0 auto;padding:9px 18px;white-space:nowrap" onclick="loadMembers()">Load members</button>
+    </div>
+    <div id="members-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;display:none"></div>
+    <div id="members-table"><div class="fb-empty">Click "Load members" to fetch from the forum.</div></div>
+  </div>
+</div>
+
+<!-- BUGS -->
+<div class="page" id="page-bugs">
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Bugs extracted from forum feedback. Select the ones you want to report and open them directly in Jira with one click.</div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="toolbar">
+      <span class="toolbar-lbl" id="bugs-lbl">No bugs yet</span>
+      <button class="btn-open-sel" id="btn-open-bugs" onclick="openSelected('bugs')" disabled>Open selected in Jira</button>
+    </div>
+    <div id="panel-bugs"><div class="fb-empty">Run analysis first.</div></div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div class="page" id="page-results">
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Feature requests and improvement ideas submitted by testers. Select and open them in Jira as tasks.</div>
+    <div class="summary-lbl">Executive Summary</div>
+    <div id="summary-text"></div>
+  </div>
+  <div class="rtabs">
+    <button class="rtab active" onclick="goRtab('ideas',this)">💡 Improvement Proposals <span class="badge" id="b-ideas">0</span></button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="toolbar">
+      <span class="toolbar-lbl" id="ideas-lbl">No improvement proposals yet</span>
+      <button class="btn-open-sel" id="btn-open-ideas" onclick="openSelected('ideas')" disabled>Open selected in Jira</button>
+    </div>
+    <div class="rpanel active" id="panel-ideas"><div class="fb-empty">No results yet.</div></div>
+  </div>
+</div>
+
+<!-- APPLICANTS -->
+<div class="page" id="page-applicants">
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">People who applied for this QA package via Microsoft Forms — cross-referenced with forum activity to identify non-contributors who received a device but haven't posted feedback.</div>
+  <div class="card">
+    <div class="card-label">External QA applicants</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+      In Microsoft Forms → open your form → <strong>Responses</strong> tab → <strong>Open in Excel</strong> → upload below. Cross-referenced with forum activity after running an analysis.
+    </p>
+    <div id="upload-area" style="border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:14px"
+      onclick="document.getElementById('excel-input').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+      ondragleave="this.style.borderColor='var(--border)'"
+      ondrop="handleExcelDrop(event)">
+      <div style="font-size:24px;margin-bottom:6px">📊</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload or drag &amp; drop</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">.xlsx or .csv from Microsoft Forms</div>
+      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
+    </div>
+    <div id="applicants-summary" style="display:none;margin-bottom:14px"></div>
+    <div id="applicants-table"><div class="fb-empty">Upload the Microsoft Forms response Excel to see External QAs.</div></div>
+  </div>
+</div>
+
+<!-- CONFLUENCE -->
+<div class="page" id="page-confluence">
+  <div class="card">
+    <div class="card-label">Publish to Confluence</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Report will be created as a subpage under <strong>External QA Reports</strong> in the TTC space. Jira issues you opened will be linked. Publishing again will update the existing page.</p>
+    <div class="arow">
+      <button class="btn-ghost" onclick="showPreview()">👁 Preview report</button>
+      <button class="btn-conf" id="conf-btn" onclick="publishConfluence()">Publish to Confluence</button>
+      <a id="conf-open-link" href="#" target="_blank" style="display:none;align-self:center;font-size:13px;font-weight:600;color:var(--blue);text-decoration:none;white-space:nowrap">↗ Open in Confluence</a>
+    </div>
+    <div id="conf-result" style="margin-top:12px;font-size:13px;display:none"></div>
+  </div>
+  <div class="card" id="jira-card" style="display:none">
+    <div class="card-label">Jira issues created</div>
+    <div id="jira-list"></div>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div class="overlay" id="preview-overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-inner">
+        <span class="modal-title">Confluence report preview</span>
+        <button class="modal-close" onclick="closePreview()">×</button>
+      </div>
+    </div>
+    <div class="modal-body" id="preview-body"></div>
+    <div class="modal-ftr">
+      <button class="btn-ghost" onclick="closePreview()">Close</button>
+      <button class="btn-conf" onclick="closePreview();publishConfluence()">Publish now</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .content -->
+
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let analysis = null;
+let meta     = {};
+
+// ── Onboarding message ────────────────────────────────────────────────────────
+const ONBOARDING_MSG = `👋 Welcome to the External QA feedback topic!
+
+Thank you for participating in the Shelly External QA program. Your feedback directly influences the development and quality of our products.
+
+📝 HOW TO SHARE FEEDBACK
+
+Feel free to post freely — no rigid format required. But if you find a bug, these details help us fix it faster:
+
+• What you were doing when it happened
+• What you expected to happen
+• What actually happened instead
+• Your firmware version (found in the device settings)
+• A screenshot or video if possible
+
+🐛 BUGS — anything that doesn't work as expected: errors, crashes, features not behaving correctly, settings that reset, connectivity issues.
+
+💡 IDEAS — suggestions for improvements or new features are always welcome.
+
+✅ POSITIVE — if something works particularly well, let us know too!
+
+Feel free to reply to each other, ask questions, and have discussions — that's what this forum is for. There's no need to follow a strict template.
+
+Thank you for your time and contribution! 🙏`;
+
+function copyOnboarding() {
+  const ta = document.getElementById('onboarding-msg');
+  if (!ta) return;
+  navigator.clipboard.writeText(ta.value).then(() => {
+    flash('copy-status', '✅ Copied to clipboard');
+  }).catch(() => {
+    ta.select();
+    document.execCommand('copy');
+    flash('copy-status', '✅ Copied');
+  });
+}
+
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+  saveCreds();
+  savePrompt();
+}
+
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next   = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
+  localStorage.setItem('shelly_theme', next);
+}
+(function() {
+  const t = localStorage.getItem('shelly_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('theme-btn').textContent = t === 'dark' ? '☀️' : '🌙';
+  });
+})();
+
+// ── Master prompt ─────────────────────────────────────────────────────────────
+const DEFAULT_PROMPT = `You are analyzing beta tester feedback for Shelly smart home devices submitted through the Shelly Community forum by External QA members. These are experienced testers who received physical devices as part of a monthly QA package.
+
+Your role: Extract every piece of actionable feedback accurately and consistently. Do not skip, merge unrelated issues, or summarize away details.
+
+CATEGORIZATION RULES:
+
+Bug — Any behavior that:
+- Does not match what the device or app is supposed to do
+- Causes a crash, freeze, disconnect, or error
+- Produces incorrect readings, states, or responses
+- Works differently than described in the QA package notes
+- Regressed from a previously working state
+- Is firmware-specific (note the firmware version if mentioned)
+- Affects connectivity (Wi-Fi drops, Bluetooth pairing failures, cloud sync issues)
+- One bug entry per distinct issue — if a tester reports 3 problems, create 3 entries
+
+Negative — Any feedback about:
+- Poor UX or confusing interface
+- Missing expected features that were promised or implied
+- Disappointment with build quality, design, or packaging
+- Comparison to competitor products where Shelly performs worse
+- Setup difficulties that are not crashes
+
+Idea / Improvement Proposal — Any suggestion for:
+- New features not currently present
+- Improvements to existing functionality ("it would be nice if...", "I wish...", "please add...", "would love...")
+- Integration requests (Home Assistant, MQTT, Alexa, NFS, local network, etc.)
+- App or firmware improvement requests
+- Local features (local recording browsing, offline mode, etc.)
+- UX improvements ("the interface could be clearer", "simplify...", "add a shortcut for...")
+- Comparisons to competitors where Shelly is missing something ("unlike X, Shelly doesn't have Y")
+- Extract EACH idea separately — one post with 3 ideas = 3 idea entries
+
+Positive — Any praise, confirmation something works well, or satisfactory test result
+
+STRICT RULES:
+- Never skip a post that contains a problem — if something does not work, it is a bug
+- Never skip a post that contains a suggestion — if someone wants a feature, it is an idea
+- Never merge two different bugs or ideas into one entry even if reported by the same person
+- A post can and should produce BOTH bug entries AND idea entries if it contains both
+- Include the exact forum username as written, do not modify it
+- For bugs: always extract steps to reproduce, expected behavior, and actual behavior if the tester mentioned them — use empty string if not mentioned, never invent them
+- Keep each entry to 1-2 sentences maximum
+- Skip posts that are purely social ("Thanks!", "Received it", "Looking forward to testing")
+- Known limitations listed in the QA package notes are NOT bugs unless a tester explicitly says they found additional behavior beyond what was noted`;
+
+const PROMPT_KEY = 'shelly_master_prompt';
+
+function savePrompt() {
+  const val = document.getElementById('master_prompt').value.trim();
+  if (val) localStorage.setItem(PROMPT_KEY, val);
+  flash('prompt-status', '✅ Saved');
+}
+function loadPrompt() {
+  const saved = localStorage.getItem(PROMPT_KEY);
+  document.getElementById('master_prompt').value = saved || DEFAULT_PROMPT;
+  if (saved) flash('prompt-status', '🔑 Loaded', 3000);
+}
+function resetPrompt() {
+  document.getElementById('master_prompt').value = DEFAULT_PROMPT;
+  localStorage.removeItem(PROMPT_KEY);
+  flash('prompt-status', 'Reset to default');
+}
+function getMasterPrompt() {
+  return document.getElementById('master_prompt')?.value.trim() || DEFAULT_PROMPT;
+}
+
+
+const CRED_IDS = ['nodebb_key','atl_email','atl_token','jira_url','jira_project','gemini_key'];
+function saveCreds() {
+  const c = {};
+  CRED_IDS.forEach(id => { const v = document.getElementById(id)?.value.trim(); if (v) c[id] = v; });
+  localStorage.setItem('shelly_creds', JSON.stringify(c));
+  flash('cred-status', '✅ Saved');
+}
+function loadCreds() {
+  try {
+    const c = JSON.parse(localStorage.getItem('shelly_creds') || '{}');
+    CRED_IDS.forEach(id => { const el = document.getElementById(id); if (el && c[id]) el.value = c[id]; });
+    if (Object.keys(c).length) flash('cred-status', '🔑 Loaded');
+  } catch(e) {}
+}
+function clearCreds() {
+  localStorage.removeItem('shelly_creds');
+  CRED_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  flash('cred-status', 'Cleared');
+}
+function flash(id, msg, ms=2500) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', ms);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  loadCreds();
+  loadPrompt();
+  const ta = document.getElementById('onboarding-msg');
+  if (ta) ta.value = ONBOARDING_MSG;
+  CRED_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', saveCreds);
+  });
+  document.getElementById('master_prompt')?.addEventListener('change', savePrompt);
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+function goRtab(name, btn) {
+  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.rpanel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+function enableTab(id) {
+  const el = document.getElementById(id);
+  if (el) { el.disabled = false; el.removeAttribute('disabled'); }
+}
+
+// ── Toast / Progress ──────────────────────────────────────────────────────────
+function toast(msg, ms=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  setTimeout(() => t.classList.remove('on'), ms);
+}
+function setProgress(pct, lbl) {
+  document.getElementById('prog-bar').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent  = pct + '%';
+  if (lbl) document.getElementById('prog-lbl').textContent = lbl;
+}
+function logLine(msg, cls) {
+  const el = document.getElementById('log');
+  const s  = document.createElement('span');
+  s.className = cls || '';
+  s.textContent = msg + '\n';
+  el.appendChild(s);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── URL parse ─────────────────────────────────────────────────────────────────
+function parseUrl(url) {
+  const m = url.match(/\/topic\/(\d+)-([^\/]+)/);
+  if (!m) throw new Error('Could not find topic ID in URL');
+  return { id: parseInt(m[1]), name: m[2].replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) };
+}
+
+// ── Fetch posts ───────────────────────────────────────────────────────────────
+async function fetchPosts(topicId, apiKey) {
+  const posts = []; let page = 1;
+  while (true) {
+    const r = await fetch(`http://localhost:5001/proxy/topic/${topicId}/posts?page=${page}`, {
+      headers: { 'X-IPS-Key': apiKey }
+    });
+    if (!r.ok) throw new Error(`Community API ${r.status} ${r.statusText}`);
+    const d = await r.json();
+    const pp = d.results || [];
+    if (!pp.length) break;
+    posts.push(...(page === 1 ? pp.slice(1) : pp));
+    if (page >= (d.totalPages || 1)) break;
+    page++;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return posts;
+}
+
+// ── Gemini via SSE ────────────────────────────────────────────────────────────
+function analyze(posts, deviceName, fwVersion) {
+  const key = document.getElementById('gemini_key').value.trim();
+  if (!key) return Promise.reject(new Error('Please enter your Gemini API key'));
+  return new Promise((resolve, reject) => {
+    fetch('http://localhost:5001/analyze-stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts, gemini_key: key, device_name: deviceName, fw_version: fwVersion, master_prompt: getMasterPrompt() })
+    })
+    .then(r => r.json())
+    .then(({ job_id, total_batches }) => {
+      setProgress(5, `Analyzing — ${total_batches} batches`);
+      logLine(`Analyzing ${posts.length} posts in ${total_batches} batches...`, 'linf');
+      const es = new EventSource(`http://localhost:5001/analyze-progress/${job_id}`);
+      es.onmessage = e => {
+        const m = JSON.parse(e.data);
+        if (m.type === 'batch') {
+          const pct = Math.round((m.batch / total_batches) * 85) + 5;
+          setProgress(pct, `Batch ${m.batch}/${total_batches} — ${m.bugs} bugs · ${m.ideas} ideas`);
+          logLine(`  Batch ${m.batch}/${total_batches}: ${m.bugs} bugs · ${m.ideas} ideas`, 'linf');
+        }
+        if (m.type === 'waiting') logLine(`  Waiting ${m.seconds}s...`, 'linf');
+        if (m.type === 'error')   logLine(`  ⚠ Batch ${m.batch}: ${m.error}`, 'lerr');
+        if (m.type === 'done')    { es.close(); setProgress(100, 'Analysis complete ✓'); resolve(m.result); }
+        if (m.type === 'fatal')   { es.close(); reject(new Error(m.error)); }
+      };
+      es.onerror = () => { es.close(); reject(new Error('Lost connection to analysis server')); };
+    })
+    .catch(reject);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderAll(a) {
+  // Summary
+  const sb = document.getElementById('summary-box');
+  if (a.summary) { document.getElementById('summary-text').textContent = a.summary; sb.style.display = 'block'; }
+
+  // Badges
+  document.getElementById('b-ideas').textContent = (a.ideas||[]).length;
+
+  // Bugs tab count
+  const bc = (a.bugs||[]).length;
+  document.getElementById('cnt-bugs').textContent = bc ? `(${bc})` : '';
+
+  // Bugs panel
+  renderPanel('bugs', a.bugs || [], true);
+
+  // Ideas panel
+  renderPanel('ideas', a.ideas || [], false);
+
+  enableTab('tab-bugs');
+  enableTab('tab-results');
+  enableTab('tab-confluence');
+}
+
+function renderPanel(key, items, isBugs) {
+  const panel  = document.getElementById('panel-' + key);
+  const lblId  = key === 'bugs' ? 'bugs-lbl' : `${key}-lbl`;
+  const btnId  = key === 'bugs' ? 'btn-open-bugs' : `btn-open-${key}`;
+  const lbl    = document.getElementById(lblId);
+  const openBtn= document.getElementById(btnId);
+  const noun   = key === 'bugs' ? 'bug' : 'improvement proposal';
+
+  if (!items.length) {
+    panel.innerHTML = `<div class="fb-empty">None reported.</div>`;
+    if (lbl) lbl.textContent = `No ${noun}s found`;
+    if (openBtn) openBtn.disabled = true;
+    return;
+  }
+
+  if (lbl) lbl.textContent = `${items.length} ${noun}${items.length>1?'s':''} found — select to open in Jira`;
+
+  panel.innerHTML = items.map((item, i) => {
+    const imgs  = item.image_urls?.length ? ` · 📎 ${item.image_urls.length} screenshot${item.image_urls.length>1?'s':''}` : '';
+    const steps = item.steps && item.steps !== '...' ? ' · Steps available' : '';
+    const fw    = (isBugs && meta.fwVersion) ? ` · FW ${meta.fwVersion}` : '';
+    return `<div class="fb-item" id="${key}-row-${i}">
+      <input type="checkbox" class="cb ${key}-cb" id="${key}-cb-${i}" onchange="updateSel('${key}')">
+      <div class="fb-text">
+        ${item.text}
+        <div class="fb-meta">@${item.username}${fw}${steps}${imgs}</div>
+      </div>
+      <div id="${key}-jira-${i}"></div>
+    </div>`;
+  }).join('');
+
+  updateSel(key);
+}
+
+function updateSel(key) {
+  const checked = document.querySelectorAll(`.${key}-cb:checked`).length;
+  const total   = (analysis?.[key]||[]).length;
+  const btn     = document.getElementById(key === 'bugs' ? 'btn-open-bugs' : `btn-open-${key}`);
+  const lbl     = document.getElementById(key === 'bugs' ? 'bugs-lbl' : `${key}-lbl`);
+  const noun    = key === 'bugs' ? 'bug' : 'improvement proposal';
+  if (btn) { btn.disabled = checked === 0; btn.textContent = checked > 0 ? `Open ${checked} in Jira` : 'Open selected in Jira'; }
+  if (lbl) lbl.textContent = checked > 0 ? `${checked} selected` : `${total} ${noun}${total!==1?'s':''} — select to open in Jira`;
+}
+
+async function openSelected(key) {
+  const items = analysis?.[key] || [];
+  const cbs   = document.querySelectorAll(`.${key}-cb`);
+  const btn   = document.getElementById(key === 'bugs' ? 'btn-open-bugs' : `btn-open-${key}`);
+  btn.disabled = true; btn.textContent = 'Opening...';
+
+  for (let i = 0; i < cbs.length; i++) {
+    if (!cbs[i].checked) continue;
+    const slot = document.getElementById(`${key}-jira-${i}`);
+    slot.innerHTML = `<span style="font-size:11px;color:var(--muted)">Creating...</span>`;
+    try {
+      const issueKey = await createJira(items[i], key);
+      cbs[i].checked = false; cbs[i].disabled = true;
+      const url = `${document.getElementById('jira_url').value.trim()}/browse/${issueKey}`;
+      slot.innerHTML = `<a href="${url}" target="_blank" style="font-size:11px;font-weight:700;color:var(--green);text-decoration:none">✅ ${issueKey}</a>`;
+      updateJiraCard();
+    } catch(e) {
+      console.error('Create Jira issue failed:', e.message);
+      slot.innerHTML = `<span style="font-size:11px;color:#c02020;cursor:help" title="${e.message.replace(/"/g,"'")}">❌ Failed — hover for details</span>`;
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  updateSel(key);
+}
+
+// ── Jira ──────────────────────────────────────────────────────────────────────
+async function createJira(item, key='bugs') {
+  const jiraUrl    = document.getElementById('jira_url').value.trim().replace(/\/$/, '');
+  const projectKey = document.getElementById('jira_project').value.trim().toUpperCase();
+  const email      = document.getElementById('atl_email').value.trim();
+  const token      = document.getElementById('atl_token').value.trim();
+  if (!projectKey || !email || !token) throw new Error('Missing Jira credentials');
+
+  const auth = 'Basic ' + btoa(`${email}:${token}`);
+  const { deviceName, packageLabel, fwVersion, topicUrl } = meta;
+
+  // Short name for Jira title: "Shelly Camera" → "Camera", "Shelly Pro 4PM" → "Pro 4PM"
+  const shortName = deviceName.replace(/^Shelly\s*/i, '').trim() || deviceName;
+
+  const hasSteps = item.steps    && item.steps    !== '...' && item.steps.trim().length > 5;
+  const hasExp   = item.expected && item.expected !== '...' && item.expected.trim().length > 5;
+  const hasAct   = item.actual   && item.actual   !== '...' && item.actual.trim().length > 5;
+  const hasRaw   = item.raw      && item.raw.trim().length > 0;
+
+  // Build wiki markup for the description field
+  let desc = `h2. Summary\n${item.text}\n\n`;
+  desc += `h2. Reporter and source\nReported by @${item.username} in the External QA feedback topic.\n`;
+  if (hasRaw) desc += `\nOriginal report:\n{quote}${item.raw}{quote}\n`;
+  desc += `\nForum link: ${topicUrl}\n\n`;
+  if (hasSteps) desc += `h2. Steps to reproduce\n${item.steps}\n\n`;
+  if (hasExp)   desc += `h2. What is the expected correct behavior?\n${item.expected}\n\n`;
+  if (hasAct)   desc += `h2. What is the current bug behavior?\n${item.actual}\n\n`;
+  desc += `----\n_Device:_ ${deviceName}${packageLabel ? ' | _Package:_ ' + packageLabel : ''}${fwVersion ? ' | _Firmware:_ ' + fwVersion : ''} | _Label:_ ExternalQA`;
+
+  const isIdea  = key === 'ideas';
+  const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+  const dueDateStr = dueDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  const fields = {
+    project:           { key: projectKey },
+    summary:           `[${shortName}] ${isIdea ? '💡 ' : ''}${item.text.substring(0,100)}${item.text.length>100?'...':''}`,
+    description:       desc,
+    customfield_11532: '',
+    issuetype:         { name: isIdea ? 'Task' : 'Bug' },
+    labels:            ['ExternalQA', deviceName.replace(/\s+/g,'-')],
+    ...(isIdea ? { duedate: dueDateStr } : {}),
+  };
+
+  const r = await fetch('http://localhost:5001/jira/issue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+    body: JSON.stringify({ fields })
+  });
+  if (!r.ok) {
+    const e = await r.json();
+    const msg = e.errors ? JSON.stringify(e.errors) : (e.errorMessages?.join(', ') || `HTTP ${r.status}`);
+    console.error('Jira error response:', JSON.stringify(e, null, 2));
+    throw new Error(msg);
+  }
+  const created  = await r.json();
+  const issueKey = created.key;
+
+  // On first issue, discover "Bug details" field ID and clear it
+  if (window._bugDetailFieldId === undefined) {
+    window._bugDetailFieldId = null;
+    try {
+      const fr = await fetch(`http://localhost:5001/jira/issue-fields/${issueKey}`, {
+        headers: { 'Authorization': auth }
+      });
+      const fieldMap = await fr.json();
+      for (const [fid, info] of Object.entries(fieldMap)) {
+        const name = (info.name || '').toLowerCase();
+        if (name.includes('bug detail') || name.includes('bug description')) {
+          window._bugDetailFieldId = fid;
+          console.log(`Found "${info.name}": ${fid}`);
+        }
+      }
+    } catch(e) { console.warn('Field discovery failed:', e); }
+  }
+  if (window._bugDetailFieldId) {
+    try {
+      await fetch(`http://localhost:5001/jira/${issueKey}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+        body: JSON.stringify({ fields: { [window._bugDetailFieldId]: null } })
+      });
+    } catch(e) { console.warn('Could not clear Bug details:', e); }
+  }
+
+  // Attach screenshots
+  const imgs = item.image_urls || [];
+  let attached = 0;
+  for (const imgUrl of imgs) {
+    const imgName = imgUrl.split('/').pop().split('?')[0] || 'screenshot.png';
+    try {
+      const ar = await fetch(`http://localhost:5001/jira-attach/${issueKey}`, {
+        method: 'POST',
+        headers: { 'Authorization': auth, 'X-Image-Url': imgUrl, 'X-Image-Name': imgName }
+      });
+      if (ar.ok) { attached++; console.log(`✅ Attached ${imgName} to ${issueKey}`); }
+      else console.warn(`Attach ${imgName} failed: ${ar.status}`);
+    } catch(e) { console.warn('Attach failed:', e); }
+  }
+  if (attached > 0) toast(`${issueKey} created + ${attached} screenshot${attached>1?'s':''} attached`);
+
+  if (!analysis._jiraIssues) analysis._jiraIssues = [];
+  analysis._jiraIssues.push({ key: issueKey, url: `${jiraUrl}/browse/${issueKey}`, text: item.text, isIdea: key === 'ideas' });
+  if (attached === 0) toast(`Jira issue ${issueKey} created`);
+  return issueKey;
+}
+
+function updateJiraCard() {
+  const issues = analysis?._jiraIssues || [];
+  const card = document.getElementById('jira-card');
+  const list = document.getElementById('jira-list');
+  if (!issues.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = issues.map(j =>
+    `<div class="jira-link-row">
+      <a href="${j.url}" target="_blank" style="color:var(--jira);font-weight:700;text-decoration:none;white-space:nowrap">${j.key}</a>
+      <span style="color:var(--muted)">${j.text}</span>
+    </div>`).join('');
+}
+
+// ── Confluence ────────────────────────────────────────────────────────────────
+function buildConfHtml() {
+  const { deviceName, packageLabel, fwVersion, topicUrl, postCount, devicesSent, uniqueContributors } = meta;
+  const jira = analysis._jiraIssues || [];
+  const now  = new Date().toUTCString();
+
+  // Participation ratio
+  const participationBlock = (() => {
+    if (!devicesSent) return '';
+    const ratio    = uniqueContributors ? Math.round((uniqueContributors / devicesSent) * 100) : 0;
+    const color    = ratio >= 70 ? '#1a7a3e' : ratio >= 40 ? '#b45309' : '#c02020';
+    const label    = ratio >= 70 ? 'Good' : ratio >= 40 ? 'Moderate' : 'Low';
+    return `<ac:structured-macro ac:name="info">
+  <ac:parameter ac:name="title">Participation Rate: ${ratio}% (${label})</ac:parameter>
+  <ac:rich-text-body>
+    <p><strong>${uniqueContributors || 0}</strong> out of <strong>${devicesSent}</strong> testers who received a device posted feedback in the forum.</p>
+    ${ratio < 40 ? '<p>⚠️ Low participation — consider following up with non-contributing recipients.</p>' : ''}
+  </ac:rich-text-body>
+</ac:structured-macro>`;
+  })();
+
+  const toList = (items, wJira) => {
+    if (!items?.length) return '<p><em>None reported.</em></p>';
+    return '<ul>' + items.map(i => {
+      const j    = wJira ? jira.find(x => x.text === i.text) : null;
+      const link = j ? ` &nbsp;<a href="${j.url}"><strong>${j.key}</strong></a>` : '';
+      return `<li>${i.text} (<em>@${i.username}</em>)${link}</li>`;
+    }).join('') + '</ul>';
+  };
+
+  let jiraTable = '';
+  if (jira.length) {
+    jiraTable = `<h2>🔗 Jira Issues Created</h2><table><tbody>
+      <tr><th>Issue</th><th>Description</th><th>Firmware</th></tr>
+      ${jira.map(j=>`<tr><td><a href="${j.url}">${j.key}</a></td><td>${j.text}</td><td>${fwVersion||'—'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  // Summary header panel
+  const summaryHeader = `<ac:structured-macro ac:name="panel">
+  <ac:parameter ac:name="title">📦 Package Summary</ac:parameter>
+  <ac:rich-text-body>
+    <table><tbody>
+      <tr><th>Device</th><td><strong>${deviceName}</strong></td></tr>
+      <tr><th>Package</th><td>${packageLabel || '—'}</td></tr>
+      ${fwVersion ? `<tr><th>Firmware</th><td>${fwVersion}</td></tr>` : ''}
+      ${devicesSent ? `<tr><th>Devices sent</th><td>${devicesSent}</td></tr>` : ''}
+      <tr><th>Forum contributors</th><td>${uniqueContributors || 0} unique users</td></tr>
+      <tr><th>Posts analyzed</th><td>${postCount}</td></tr>
+      <tr><th>Bugs found</th><td>${(analysis.bugs||[]).length}</td></tr>
+      <tr><th>Improvement proposals</th><td>${(analysis.ideas||[]).length}</td></tr>
+      <tr><th>Jira issues created</th><td>${jira.length}</td></tr>
+      <tr><th>Report generated</th><td>${now}</td></tr>
+      <tr><th>Forum topic</th><td><a href="${topicUrl}">View topic</a></td></tr>
+    </tbody></table>
+  </ac:rich-text-body>
+</ac:structured-macro>`;
+
+  // Applicants section from uploaded Excel
+  const applicantsBlock = (() => {
+    const rows = window._applicants;
+    if (!rows?.length) return '';
+
+    const allKeys     = Object.keys(rows[0]);
+    const nameKey     = allKeys.find(k => /your full name/i.test(k)) || allKeys.find(k => /full.?name/i.test(k)) || allKeys[0];
+    const emailKey    = allKeys.find(k => /your email/i.test(k)) || allKeys.find(k => /^email$/i.test(k));
+    const nicknameKey = allKeys.find(k => /nickname|shelly.?forum/i.test(k));
+
+    const contributors = new Set((window._forumUsernames||[]).map(n => n.toLowerCase().trim()));
+    let active = 0, inactive = 0;
+
+    const tableRows = rows.map(row => {
+      const name     = row[nameKey]     || '—';
+      const email    = emailKey    ? row[emailKey]    || '—' : null;
+      const nickname = nicknameKey ? (row[nicknameKey]||'').trim() : '';
+      const nickLower = nickname.toLowerCase();
+      const isActive = contributors.size === 0 ? null
+        : contributors.has(nickLower)
+          || (nickLower.length > 2 && [...contributors].some(c => c === nickLower || c.replace(/[\s._-]/g,'') === nickLower.replace(/[\s._-]/g,'')));
+      if (isActive === true) active++;
+      else if (isActive === false) inactive++;
+      const status = contributors.size === 0 ? '—' : isActive ? '✅ Active' : '⚠️ No posts';
+      return `<tr><td>${name}</td>${nicknameKey ? `<td>${nickname||'—'}</td>` : ''}${email!==null ? `<td>${email}</td>` : ''}<td>${status}</td></tr>`;
+    }).join('');
+
+    const ratio = active + inactive > 0 ? Math.round((active / (active + inactive)) * 100) : 0;
+    const label = ratio >= 70 ? 'Good' : ratio >= 40 ? 'Moderate' : 'Low';
+
+    return `<h2>👥 External QA Applicants</h2>
+<ac:structured-macro ac:name="info">
+  <ac:parameter ac:name="title">Participation: ${ratio}% (${label}) — ${active} active of ${rows.length} applicants</ac:parameter>
+  <ac:rich-text-body>
+    <p><strong>${active}</strong> out of <strong>${rows.length}</strong> External QA members who applied posted feedback in the forum. <strong>${inactive}</strong> received a device but have not contributed.</p>
+    ${ratio < 40 ? '<p>⚠️ Consider following up with non-contributing recipients.</p>' : ''}
+  </ac:rich-text-body>
+</ac:structured-macro>
+<table><tbody>
+  <tr><th>Full Name</th>${nicknameKey ? '<th>Forum Nickname</th>' : ''}${emailKey ? '<th>Email</th>' : ''}<th>Forum Activity</th></tr>
+  ${tableRows}
+</tbody></table>`;
+  })();
+
+  return `${summaryHeader}
+${participationBlock}
+<ac:structured-macro ac:name="info">
+  <ac:parameter ac:name="title">Executive Summary</ac:parameter>
+  <ac:rich-text-body><p>${analysis.summary}</p></ac:rich-text-body>
+</ac:structured-macro>
+${jiraTable}
+<h2>✅ Positive feedback</h2>${toList(analysis.positive, false)}
+<h2>🐛 Bugs</h2>${toList(analysis.bugs, true)}
+<h2>⚠️ Negative feedback</h2>${toList(analysis.negative, false)}
+<h2>💡 Improvement Proposals</h2>${toList(analysis.ideas, true)}
+${applicantsBlock}`;
+}
+
+function showPreview() {
+  if (!analysis) { alert('Run analysis first.'); return; }
+  const { deviceName, packageLabel, fwVersion, topicUrl, postCount, devicesSent, uniqueContributors } = meta;
+  const jira = analysis._jiraIssues || [];
+  const now  = new Date().toUTCString();
+
+  const participationHtml = (() => {
+    if (!devicesSent) return '';
+    const ratio = uniqueContributors ? Math.round((uniqueContributors / devicesSent) * 100) : 0;
+    const color = ratio >= 70 ? 'var(--green)' : ratio >= 40 ? '#b45309' : '#c02020';
+    return `<div style="background:var(--blue-light);border:1px solid rgba(11,132,255,.2);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px">
+      <strong>Participation rate:</strong> <span style="color:${color};font-weight:700">${ratio}%</span> —
+      ${uniqueContributors||0} of ${devicesSent} testers contributed feedback
+      ${ratio < 40 ? ' <span style="color:#c02020">⚠️ Low — follow up with non-contributors</span>' : ''}
+    </div>`;
+  })();
+
+  const summaryHtml = `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Device</th><td style="padding:6px 10px;border:1px solid var(--border)"><strong>${deviceName}</strong></td></tr>
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Package</th><td style="padding:6px 10px;border:1px solid var(--border)">${packageLabel||'—'}</td></tr>
+    ${fwVersion ? `<tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Firmware</th><td style="padding:6px 10px;border:1px solid var(--border)">${fwVersion}</td></tr>` : ''}
+    ${devicesSent ? `<tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Devices sent</th><td style="padding:6px 10px;border:1px solid var(--border)">${devicesSent}</td></tr>` : ''}
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Contributors</th><td style="padding:6px 10px;border:1px solid var(--border)">${uniqueContributors||0} unique users / ${postCount} posts</td></tr>
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Bugs found</th><td style="padding:6px 10px;border:1px solid var(--border)">${(analysis.bugs||[]).length} (${jira.filter(j=>!j.isIdea).length} opened in Jira)</td></tr>
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Improvement proposals</th><td style="padding:6px 10px;border:1px solid var(--border)">${(analysis.ideas||[]).length} (${jira.filter(j=>j.isIdea).length} opened in Jira)</td></tr>
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Generated</th><td style="padding:6px 10px;border:1px solid var(--border)">${now}</td></tr>
+    <tr><th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);text-align:left">Forum topic</th><td style="padding:6px 10px;border:1px solid var(--border)"><a href="${topicUrl}" target="_blank">View topic</a></td></tr>
+  </table>`;
+
+  const toList = (items, wJira) => {
+    if (!items?.length) return '<p><em>None reported.</em></p>';
+    return '<ul>' + items.map(i => {
+      const j    = wJira ? jira.find(x => x.text === i.text) : null;
+      const link = j ? ` <a href="${j.url}" target="_blank">[${j.key}]</a>` : '';
+      return `<li>${i.text} <em>(@${i.username})</em>${link}</li>`;
+    }).join('') + '</ul>';
+  };
+
+  let jiraSection = '';
+  if (jira.length) {
+    jiraSection = `<h2>🔗 Jira Issues Created</h2><table>
+      <tr><th>Issue</th><th>Description</th><th>Firmware</th></tr>
+      ${jira.map(j=>`<tr><td><a href="${j.url}" target="_blank">${j.key}</a></td><td>${j.text}</td><td>${fwVersion||'—'}</td></tr>`).join('')}
+      </table>`;
+  }
+
+  // Applicants preview section
+  const applicantsPreview = (() => {
+    const rows = window._applicants;
+    if (!rows?.length) return '';
+    const allKeys     = Object.keys(rows[0]);
+    const nameKey     = allKeys.find(k => /your full name/i.test(k)) || allKeys.find(k => /full.?name/i.test(k)) || allKeys[0];
+    const emailKey    = allKeys.find(k => /your email/i.test(k)) || allKeys.find(k => /^email$/i.test(k));
+    const nicknameKey = allKeys.find(k => /nickname|shelly.?forum/i.test(k));
+    const contributors = new Set((window._forumUsernames||[]).map(n => n.toLowerCase().trim()));
+    let active = 0, inactive = 0;
+    const tableRows = rows.map(row => {
+      const name = row[nameKey] || '—';
+      const email = emailKey ? row[emailKey] || '—' : null;
+      const nickname = nicknameKey ? (row[nicknameKey]||'').trim() : '';
+      const nickLower = nickname.toLowerCase();
+      const isActive = contributors.size === 0 ? null
+        : contributors.has(nickLower) || (nickLower.length > 2 && [...contributors].some(c => c === nickLower));
+      if (isActive === true) active++;
+      else if (isActive === false) inactive++;
+      const statusStyle = contributors.size === 0 ? 'color:var(--muted)'
+        : isActive ? 'color:var(--green);font-weight:700' : 'color:#c02020;font-weight:700';
+      const statusText = contributors.size === 0 ? '—' : isActive ? '✅ Active' : '⚠️ No posts';
+      return `<tr>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px">${name}</td>
+        ${nicknameKey ? `<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;color:var(--blue);font-weight:600">${nickname||'—'}</td>` : ''}
+        ${email!==null ? `<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${email}</td>` : ''}
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;${statusStyle}">${statusText}</td>
+      </tr>`;
+    }).join('');
+    const ratio = active + inactive > 0 ? Math.round((active / (active+inactive)) * 100) : 0;
+    const _th = t => `<th style="background:var(--blue-light);color:var(--blue);padding:6px 10px;border:1px solid var(--border);font-size:11px;font-weight:700;text-align:left">${t}</th>`;
+    return `<h2>👥 External QA Applicants</h2>
+    <div style="background:var(--blue-light);border:1px solid rgba(11,132,255,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+      <strong>${rows.length}</strong> applicants &nbsp;·&nbsp; <span style="color:var(--green);font-weight:700">${active} active</span> &nbsp;·&nbsp; <span style="color:#c02020;font-weight:700">${inactive} no posts</span> &nbsp;·&nbsp; Participation: <strong>${ratio}%</strong>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">
+      <thead><tr>${__th('Full Name')}${nicknameKey?th('Nickname'):''}${emailKey?_th('Email'):''}${__th('Activity')}</tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+  })();
+
+  document.getElementById('preview-body').innerHTML = `
+    ${summaryHtml}
+    ${participationHtml}
+    <div class="modal-summary">${analysis.summary}</div>
+    ${jiraSection}
+    <h2>✅ Positive feedback</h2>${toList(analysis.positive, false)}
+    <h2>🐛 Bugs</h2>${toList(analysis.bugs, true)}
+    <h2>⚠️ Negative feedback</h2>${toList(analysis.negative, false)}
+    <h2>💡 Improvement Proposals</h2>${toList(analysis.ideas, true)}
+    ${applicantsPreview}`;
+  document.getElementById('preview-overlay').classList.add('open');
+}
+function closePreview() { document.getElementById('preview-overlay').classList.remove('open'); }
+
+async function publishConfluence() {
+  if (!analysis) { alert('Run analysis first.'); return; }
+  const SPACE  = 'TTC', PARENT = '2574516248';
+  const PROXY  = 'http://localhost:5001/confluence';
+  const email  = document.getElementById('atl_email').value.trim();
+  const token  = document.getElementById('atl_token').value.trim();
+  if (!email || !token) { alert('Please fill in Atlassian credentials.'); return; }
+
+  const btn = document.getElementById('conf-btn');
+  btn.disabled = true; btn.textContent = 'Publishing...';
+
+  try {
+    const { deviceName, packageLabel } = meta;
+    const title   = `${deviceName} — ${packageLabel || new Date().toLocaleString('en-US',{month:'long',year:'numeric'})} QA Feedback`;
+    const body    = buildConfHtml();
+    const auth    = 'Basic ' + btoa(`${email}:${token}`);
+    const headers = { 'Content-Type': 'application/json', 'Authorization': auth };
+
+    const search  = await fetch(`${PROXY}/content?title=${encodeURIComponent(title)}&spaceKey=${SPACE}&expand=version`, { headers });
+    const sData   = await search.json();
+    const existing = sData.results?.[0];
+    let pageId;
+
+    if (existing) {
+      await fetch(`${PROXY}/content/${existing.id}`, { method: 'PUT', headers, body: JSON.stringify({ version: { number: existing.version.number + 1 }, title, type: 'page', body: { storage: { value: body, representation: 'storage' } } }) });
+      pageId = existing.id;
+    } else {
+      const cr = await fetch(`${PROXY}/content`, { method: 'POST', headers, body: JSON.stringify({ type: 'page', title, space: { key: SPACE }, ancestors: [{ id: PARENT }], body: { storage: { value: body, representation: 'storage' } } }) });
+      pageId = (await cr.json()).id;
+    }
+
+    const pageUrl  = `https://shellyusa.atlassian.net/wiki/spaces/${SPACE}/pages/${pageId}`;
+    const isUpdate = !!existing;
+
+    btn.disabled    = false;
+    btn.textContent = '🔄 Re-publish to Confluence';
+
+    const openLink  = document.getElementById('conf-open-link');
+    openLink.href   = pageUrl;
+    openLink.style.display = 'inline';
+
+    const result    = document.getElementById('conf-result');
+    result.style.display = 'block';
+    result.innerHTML = `${isUpdate ? '🔄 Updated' : '✅ Published'}: <a href="${pageUrl}" target="_blank">${title}</a>`;
+
+    toast(`Confluence page ${isUpdate ? 'updated' : 'published'}`);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Publish to Confluence';
+    alert('Confluence error: ' + e.message);
+  }
+}
+
+// ── Members ───────────────────────────────────────────────────────────────────
+
+let _allMembers = [];
+
+// Map country name → timezone(s) used in that country
+const COUNTRY_TIMEZONES = {
+  'france':        ['europe/paris'],
+  'germany':       ['europe/berlin'],
+  'italy':         ['europe/rome'],
+  'spain':         ['europe/madrid'],
+  'portugal':      ['europe/lisbon'],
+  'netherlands':   ['europe/amsterdam'],
+  'belgium':       ['europe/brussels'],
+  'austria':       ['europe/vienna'],
+  'switzerland':   ['europe/zurich', 'europe/zurich'],
+  'sweden':        ['europe/stockholm'],
+  'norway':        ['europe/oslo'],
+  'denmark':       ['europe/copenhagen'],
+  'finland':       ['europe/helsinki'],
+  'poland':        ['europe/warsaw'],
+  'czech':         ['europe/prague'],
+  'hungary':       ['europe/budapest'],
+  'romania':       ['europe/bucharest'],
+  'bulgaria':      ['europe/sofia'],
+  'greece':        ['europe/athens'],
+  'turkey':        ['europe/istanbul'],
+  'israel':        ['asia/jerusalem'],
+  'uk':            ['europe/london'],
+  'ireland':       ['europe/dublin'],
+  'usa':           ['america/new_york','america/chicago','america/denver','america/los_angeles','america/phoenix'],
+  'canada':        ['america/toronto','america/vancouver','america/winnipeg'],
+  'australia':     ['australia/sydney','australia/melbourne','australia/brisbane'],
+  'russia':        ['europe/moscow'],
+  'slovenia':      ['europe/ljubljana'],
+  'croatia':       ['europe/zagreb'],
+  'serbia':        ['europe/belgrade'],
+  'malta':         ['europe/malta'],
+};
+
+function getTimezonesForCountry(input) {
+  const lower = input.toLowerCase().trim();
+  // Direct match
+  if (COUNTRY_TIMEZONES[lower]) return COUNTRY_TIMEZONES[lower];
+  // Partial match
+  const key = Object.keys(COUNTRY_TIMEZONES).find(k => k.includes(lower) || lower.includes(k));
+  return key ? COUNTRY_TIMEZONES[key] : null;
+}
+
+async function loadMembers() {
+  const apiKey = document.getElementById('nodebb_key').value.trim();
+  if (!apiKey) { alert('Please enter your Community API key in Settings first.'); return; }
+
+  const statusEl = document.getElementById('members-status');
+  const tableEl  = document.getElementById('members-table');
+  statusEl.style.display = 'block';
+  statusEl.textContent   = 'Fetching members...';
+  tableEl.innerHTML      = '<div class="fb-empty">Loading...</div>';
+  _allMembers = [];
+
+  try {
+    let page = 1, totalPages = 1;
+    while (page <= totalPages) {
+      statusEl.textContent = `Fetching page ${page}${totalPages > 1 ? ' of ' + totalPages : ''}...`;
+      const r = await fetch(`http://localhost:5001/proxy/members?page=${page}&perPage=100`, {
+        headers: { 'X-IPS-Key': apiKey }
+      });
+      if (!r.ok) throw new Error(`API error ${r.status} — check API key permissions`);
+      const d = await r.json();
+      if (d.results) _allMembers.push(...d.results);
+      totalPages = d.totalPages || 1;
+      if (page >= totalPages) break;
+      page++;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    statusEl.textContent = `${_allMembers.length} members loaded`;
+
+    // Log first member to inspect available fields
+    if (_allMembers.length) console.log('Sample member fields:', Object.keys(_allMembers[0]), _allMembers[0]);
+
+    filterMembers();
+  } catch(e) {
+    statusEl.textContent = '❌ ' + e.message;
+    tableEl.innerHTML = `<div class="fb-empty">${e.message}</div>`;
+  }
+}
+
+let _membersSort = { col: 'Posts', dir: -1 };
+
+function sortMembers(col) {
+  if (_membersSort.col === col) {
+    _membersSort.dir *= -1;
+  } else {
+    _membersSort.col = col;
+    _membersSort.dir = 1;
+  }
+  filterMembers();
+}
+
+function filterMembers() {
+  const input    = (document.getElementById('members-country').value || '').trim();
+  const domain   = (document.getElementById('members-domain').value || '').trim().toLowerCase();
+  const tableEl  = document.getElementById('members-table');
+  const statusEl = document.getElementById('members-status');
+  if (!_allMembers.length) return;
+
+  const timezones = input ? getTimezonesForCountry(input) : null;
+
+  const filtered = _allMembers.filter(m => {
+    // Country/timezone filter
+    let countryMatch = true;
+    if (input) {
+      const tz  = (m.timezone || m.timeZone || m.time_zone || '').toLowerCase();
+      const loc = (m.location || '').toLowerCase();
+      if (timezones && tz) {
+        countryMatch = timezones.some(t => tz.includes(t) || t.includes(tz));
+      } else {
+        countryMatch = loc.includes(input.toLowerCase()) || JSON.stringify(m).toLowerCase().includes(input.toLowerCase());
+      }
+    }
+
+    // Email domain filter
+    let domainMatch = true;
+    if (domain) {
+      const email = (m.email || '').toLowerCase();
+      domainMatch = email.endsWith(domain) || email.includes('@' + domain.replace(/^\./, ''));
+    }
+
+    return countryMatch && domainMatch;
+  });
+
+  const parts = [];
+  if (input)  parts.push(`country: "${input}"${timezones ? ' (by timezone)' : ''}`);
+  if (domain) parts.push(`domain: "${domain}"`);
+  statusEl.style.display = 'block';
+  statusEl.textContent   = `${filtered.length} member${filtered.length !== 1 ? 's' : ''} ${parts.length ? 'matching ' + parts.join(' + ') : 'total'}`;
+
+  if (!filtered.length) {
+    tableEl.innerHTML = `<div class="fb-empty">No members found for the current filters.</div>`;
+    return;
+  }
+
+  // Sort
+  const colKeys = { 'Username': 'name', 'Email': 'email', 'Location': 'location', 'Timezone': 'timezone', 'Posts': 'postCount', 'Rank': '_rank', 'Joined': 'joined' };
+  if (_membersSort.col) {
+    const key = colKeys[_membersSort.col];
+    filtered.sort((a, b) => {
+      let va = key === '_rank'
+        ? (a.rank?.name || a.primaryGroup?.name || '')
+        : (a[key] ?? '');
+      let vb = key === '_rank'
+        ? (b.rank?.name || b.primaryGroup?.name || '')
+        : (b[key] ?? '');
+      if (key === 'postCount') { va = Number(va)||0; vb = Number(vb)||0; return (va - vb) * _membersSort.dir; }
+      if (key === 'joined')    { va = new Date(va||0); vb = new Date(vb||0); return (va - vb) * _membersSort.dir; }
+      return String(va).localeCompare(String(vb)) * _membersSort.dir;
+    });
+  }
+
+  const mth = (t, col) => {
+    const isActive = _membersSort.col === col;
+    const arrow    = isActive ? (_membersSort.dir === 1 ? ' ↑' : ' ↓') : ' ↕';
+    return `<th onclick="sortMembers('${col}')" style="background:var(--blue-light);color:var(--blue);padding:8px 12px;border:1px solid var(--border);font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap" title="Click to sort">${t}<span style="opacity:${isActive?1:0.4}">${arrow}</span></th>`;
+  };
+
+  const rows = filtered.map(m => {
+    const name     = m.name || '—';
+    const email    = m.email || '—';
+    const tz       = m.timezone || m.timeZone || '—';
+    const location = m.location || '—';
+    const posts    = m.postCount ?? '—';
+    const joined   = m.joined ? new Date(m.joined).toLocaleDateString('en-GB') : '—';
+    const rank = (() => {
+      // Try all possible IPS rank/group fields
+      const parts = [];
+      if (m.rank?.name)              parts.push(m.rank.name);
+      if (m.primaryGroup?.name)      parts.push(m.primaryGroup.name);
+      if (m.rank?.points !== undefined) parts.push(`${m.rank.points} pts`);
+      if (m.reputationPoints !== undefined && m.reputationPoints !== null) parts.push(`${m.reputationPoints} rep`);
+      // If we only got one part, show it; if none, show raw dump for debugging
+      if (!parts.length) {
+        const rankFields = ['rank','group','level','title','badge'];
+        for (const key of Object.keys(m)) {
+          if (rankFields.some(f => key.toLowerCase().includes(f)) && m[key]) {
+            const val = typeof m[key] === 'object' ? JSON.stringify(m[key]) : m[key];
+            parts.push(`${key}: ${val}`);
+          }
+        }
+      }
+      return parts.length ? parts.filter((v,i,a) => a.indexOf(v) === i).join(' · ') : '—';
+    })();
+    const profileUrl = m.profileUrl || m.url || `https://community.shelly.cloud/profile/${m.id}-/`;
+    return `<tr>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:13px;font-weight:600">
+        <a href="${profileUrl}" target="_blank" style="color:var(--blue);text-decoration:none">${name}</a>
+      </td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${email}</td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${location}</td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${tz}</td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;text-align:center">${posts}</td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${rank}</td>
+      <td style="padding:8px 12px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${joined}</td>
+    </tr>`;
+  }).join('');
+
+  tableEl.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    <thead><tr>${mth('Username','Username')}${mth('Email','Email')}${mth('Location','Location')}${mth('Timezone','Timezone')}${mth('Posts','Posts')}${mth('Rank','Rank')}${mth('Joined','Joined')}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function handleExcelDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-area').style.borderColor = 'var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file) handleExcelFile(file);
+}
+
+async function handleExcelFile(file) {
+  if (!file) return;
+  const area = document.getElementById('upload-area');
+  area.innerHTML = `<div style="font-size:13px;color:var(--muted)">Reading ${file.name}...</div>`;
+
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('SheetJS not loaded — check your internet connection');
+    const buf  = await file.arrayBuffer();
+    const wb   = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    if (!rows.length) throw new Error('No data found in file');
+
+    window._applicants = rows;
+    const forumUsers = window._forumUsernames || [];
+    renderApplicants(rows, forumUsers);
+
+    area.innerHTML = `<div style="font-size:13px;color:var(--green);font-weight:600">✅ ${file.name} — ${rows.length} responses loaded</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;cursor:pointer" onclick="document.getElementById('excel-input').click()">Upload a different file</div>
+      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">`;
+
+    enableTab('tab-applicants');
+    document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-applicants').classList.add('active');
+    document.querySelector('.page-tab[onclick="goPage(\'applicants\',this)"]').classList.add('active');
+
+  } catch(e) {
+    area.innerHTML = `<div style="font-size:13px;color:#c02020">❌ Error: ${e.message}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;cursor:pointer" onclick="document.getElementById('excel-input').click()">Try again</div>
+      <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">`;
+    console.error('Excel parse error:', e);
+  }
+}
+
+function renderApplicants(rows, forumUsernames) {
+  const container = document.getElementById('applicants-table');
+  const summary   = document.getElementById('applicants-summary');
+  if (!rows?.length) { container.innerHTML = `<div class="fb-empty">No data found.</div>`; return; }
+
+  const allKeys  = Object.keys(rows[0]);
+  // MS Forms exact column names from Shelly QA form
+  const nameKey     = allKeys.find(k => /your full name/i.test(k))
+                   || allKeys.find(k => /full.?name/i.test(k))
+                   || allKeys.find(k => /^name$/i.test(k))
+                   || allKeys.find(k => /name/i.test(k) && !/nick/i.test(k)) || allKeys[0];
+  const emailKey    = allKeys.find(k => /your email/i.test(k))
+                   || allKeys.find(k => /^email$/i.test(k));
+  const nicknameKey = allKeys.find(k => /nickname|shelly.?forum|forum.?name/i.test(k));
+
+  // Exact case-insensitive match on forum nickname
+  const contributors = new Set((forumUsernames || []).map(n => n.toLowerCase().trim()));
+  let active = 0, inactive = 0;
+
+  const rows_html = rows.map(row => {
+    const name      = row[nameKey]     || '—';
+    const email     = emailKey   ? row[emailKey]     : null;
+    const nickname  = nicknameKey ? (row[nicknameKey] || '').trim() : '';
+    const nickLower = nickname.toLowerCase();
+
+    const isActive = contributors.size === 0 ? null
+      : contributors.has(nickLower)
+        || (nickLower.length > 2 && [...contributors].some(c =>
+            c === nickLower || c.replace(/[\s._-]/g,'') === nickLower.replace(/[\s._-]/g,'')));
+
+    if (isActive === true) active++;
+    else if (isActive === false) inactive++;
+
+    let activityCell;
+    if (contributors.size === 0) {
+      activityCell = `<td style="padding:10px 14px;border:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--muted);font-style:italic">Run analysis first</span>
+      </td>`;
+    } else if (isActive) {
+      activityCell = `<td style="padding:10px 14px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div>
+          <span style="font-size:12px;font-weight:700;color:var(--green)">Active</span>
+        </div>
+      </td>`;
+    } else {
+      activityCell = `<td style="padding:10px 14px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:#e53e3e;flex-shrink:0"></div>
+          <span style="font-size:12px;font-weight:700;color:#c02020">No posts</span>
+        </div>
+      </td>`;
+    }
+
+    return `<tr>
+      <td style="padding:10px 14px;border:1px solid var(--border);font-size:13px;font-weight:600">${name}</td>
+      ${nicknameKey ? `<td style="padding:10px 14px;border:1px solid var(--border);font-size:13px;color:var(--blue);font-weight:600">${nickname || '—'}</td>` : ''}
+      ${email ? `<td style="padding:10px 14px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${email}</td>` : ''}
+      ${activityCell}
+    </tr>`;
+  }).join('');
+
+  const _thk = k => `<th style="background:var(--blue-light);color:var(--blue);padding:10px 14px;border:1px solid var(--border);font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:.5px">${k}</th>`;
+
+  container.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    <thead><tr>
+      ${_thk('Full Name')}
+      ${nicknameKey ? _thk('Forum Nickname') : ''}
+      ${emailKey ? _thk('Email') : ''}
+      ${_thk('Forum Activity')}
+    </tr></thead>
+    <tbody>${rows_html}</tbody>
+  </table></div>`;
+
+  if (contributors.size > 0) {
+    const total = rows.length;
+    const ratio = Math.round((active / total) * 100);
+    const color = ratio >= 70 ? 'var(--green)' : ratio >= 40 ? '#b45309' : '#c02020';
+    summary.style.display = 'block';
+    summary.innerHTML = `<div style="background:var(--blue-light);border:1px solid rgba(11,132,255,.2);border-radius:8px;padding:12px 16px;font-size:13px;display:flex;gap:20px;flex-wrap:wrap">
+      <span><strong>${total}</strong> applicants</span>
+      <span style="color:var(--green);font-weight:700">✅ ${active} active in forum</span>
+      <span style="color:#c02020;font-weight:700">⚠️ ${inactive} no posts</span>
+      <span>Participation: <strong style="color:${color}">${ratio}%</strong></span>
+      ${ratio < 40 ? '<span style="color:#c02020">— consider following up with non-contributors</span>' : ''}
+    </div>`;
+  }
+}
+
+async function runAnalysis() {
+  const btn = document.getElementById('run-btn');
+  const statusEl = document.getElementById('status');
+  document.getElementById('log').innerHTML = '';
+  statusEl.classList.add('on');
+  setProgress(0, 'Starting...');
+  btn.disabled = true;
+  analysis = null;
+
+  const topicUrl  = document.getElementById('topic_url').value.trim();
+  const nodebbKey = document.getElementById('nodebb_key').value.trim();
+  const fwVersion = document.getElementById('fw_version').value.trim();
+
+  if (!topicUrl)  { logLine('Please enter a topic URL.', 'lerr'); btn.disabled = false; return; }
+  if (!nodebbKey) { logLine('Please enter your Community API key.', 'lerr'); btn.disabled = false; return; }
+
+  try {
+    const { id: topicId, name: inferred } = parseUrl(topicUrl);
+    const deviceName   = document.getElementById('device_name').value.trim() || inferred;
+    const packageLabel = document.getElementById('package_label').value.trim() || new Date().toLocaleString('en-US',{month:'long',year:'numeric'});
+    const devicesSent  = parseInt(document.getElementById('devices_sent').value.trim()) || null;
+    meta = { deviceName, packageLabel, fwVersion, topicUrl, postCount: 0, devicesSent };
+
+    setProgress(2, 'Fetching posts...');
+    logLine(`Topic #${topicId}  |  ${deviceName}  |  ${packageLabel}${fwVersion ? '  |  FW ' + fwVersion : ''}`, 'linf');
+
+    const posts = await fetchPosts(topicId, nodebbKey);
+    meta.postCount = posts.length;
+    const uniqueUsers = new Set(posts.map(p => p.author?.name || p.author?.displayName || '').filter(Boolean));
+    meta.uniqueContributors = uniqueUsers.size;
+    window._forumUsernames = [...uniqueUsers];
+    logLine(`Fetched ${posts.length} feedback posts`, 'linf');
+    if (!posts.length) { logLine('No feedback posts found.', 'lerr'); btn.disabled = false; return; }
+
+    setProgress(5, 'Sending to analysis server...');
+    const result = await analyze(posts, deviceName, fwVersion);
+    analysis = result;
+
+    const c = { b:(result.bugs||[]).length, i:(result.ideas||[]).length };
+    logLine(`Done — ${c.b} bugs · ${c.i} improvement proposals`, 'lok');
+
+    renderAll(result);
+
+    // Go to Bugs tab
+    document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-bugs').classList.add('active');
+    document.querySelector('.page-tab[onclick="goPage(\'bugs\',this)"]').classList.add('active');
+
+  } catch(e) {
+    logLine('Error: ' + e.message, 'lerr');
+  }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
