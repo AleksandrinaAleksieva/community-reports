@@ -537,7 +537,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 // Auto-detect proxy URL — works on localhost and on Pi
 const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? '${PROXY_BASE}'
-  : `http://${window.location.hostname}:5001`;
+  : 'https://lucina-inharmonious-rosella.ngrok-free.dev';
 
 let analysis = null;
 let meta     = {};
