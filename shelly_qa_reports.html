@@ -802,13 +802,8 @@ async function loadHomeTopics() {
     const month = now.toLocaleString('en-US', {month:'long'});
     const year  = now.getFullYear();
 
-    // Fetch topics from QA forum
-    const r = await fetch(`${PROXY_BASE}/proxy/members?page=1&perPage=1`, {
-      headers: { 'X-IPS-Key': apiKey }
-    });
-
-    // Fetch forum topics via topics endpoint
-    const tr = await fetch(`${PROXY_BASE}/proxy/forum-topics?forum_id=367`, {
+    // Fetch feedback topics from the current QA pack (walks the monthly subforum)
+    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?parent_forum_id=367`, {
       headers: { 'X-IPS-Key': apiKey }
     });
 
