@@ -803,7 +803,7 @@ async function loadHomeTopics() {
     const year  = now.getFullYear();
 
     // Fetch feedback topics from the current QA pack (walks the monthly subforum)
-    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?parent_forum_id=367`, {
+    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics`, {
       headers: { 'X-IPS-Key': apiKey }
     });
 
