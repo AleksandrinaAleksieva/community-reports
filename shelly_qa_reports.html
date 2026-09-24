@@ -159,6 +159,16 @@ input:focus,select:focus,textarea:focus{
 }
 .hint{font-size:11px;color:var(--muted);margin-top:4px}
 .hint a{color:var(--blue);text-decoration:none}
+.howto{margin-top:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surf2);overflow:hidden}
+.howto summary{cursor:pointer;font-size:11.5px;font-weight:600;color:var(--blue);padding:7px 10px;list-style:none;user-select:none;display:flex;align-items:center;gap:6px}
+.howto summary::-webkit-details-marker{display:none}
+.howto summary::before{content:"▸";font-size:10px;transition:transform .15s}
+.howto[open] summary::before{transform:rotate(90deg)}
+.howto-body{padding:2px 12px 10px;font-size:12px;color:var(--text2);line-height:1.6}
+.howto-body ol{margin:4px 0 0;padding-left:18px}
+.howto-body li{margin-bottom:4px}
+.howto-body a{color:var(--blue)}
+.howto-body code{background:var(--surf);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:11px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .sep{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
@@ -467,6 +477,8 @@ th.sortable:hover{color:var(--text)}
   </div>
   <div class="toolbar">
     <span class="toolbar-label" id="bugs-lbl">No bugs found yet</span>
+    <button class="btn btn-sm" id="btn-selall-bugs" onclick="selectAll('bugs', true)" disabled>Select all</button>
+    <button class="btn btn-sm" id="btn-deselall-bugs" onclick="selectAll('bugs', false)" disabled>Deselect all</button>
     <button class="btn btn-primary btn-sm" id="btn-open-bugs" onclick="openSelected('bugs')" disabled>Open selected in Jira</button>
   </div>
   <div class="fb-list" id="panel-bugs"><div class="fb-empty">Run an analysis first.</div></div>
@@ -483,6 +495,8 @@ th.sortable:hover{color:var(--text)}
   </div>
   <div class="toolbar" id="ideas-toolbar" style="display:none">
     <span class="toolbar-label" id="ideas-lbl">No proposals found</span>
+    <button class="btn btn-sm" id="btn-selall-ideas" onclick="selectAll('ideas', true)" disabled>Select all</button>
+    <button class="btn btn-sm" id="btn-deselall-ideas" onclick="selectAll('ideas', false)" disabled>Deselect all</button>
     <button class="btn btn-primary btn-sm" id="btn-open-ideas" onclick="openSelected('ideas')" disabled>Open selected in Jira</button>
   </div>
   <div class="rpanel active" id="panel-ideas"><div class="fb-empty">Run an analysis first.</div></div>
@@ -583,7 +597,7 @@ th.sortable:hover{color:var(--text)}
       <button class="modal-close" onclick="closeSettings()">×</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">API keys load automatically from the server. Only your personal Atlassian token is required.</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Enter your own credentials below — they're saved only in this browser and are never sent to or stored on the server.</p>
       <div class="sep" style="margin-top:0">Atlassian</div>
       <div class="row2">
         <div class="field"><label>Email</label><input type="text" id="atl_email" placeholder="you@shelly.com"></div>
@@ -593,13 +607,47 @@ th.sortable:hover{color:var(--text)}
           <p class="hint"><a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank">Generate at id.atlassian.com</a></p>
         </div>
       </div>
+      <details class="howto">
+        <summary>How do I get my Atlassian API token?</summary>
+        <div class="howto-body">
+          <ol>
+            <li>Go to <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank">id.atlassian.com → Security → API tokens</a> (log in with your Shelly Atlassian account if asked).</li>
+            <li>Click <code>Create API token</code>.</li>
+            <li>Give it a label, e.g. <code>Shelly QA Reports</code>, then click <code>Create</code>.</li>
+            <li>Copy the token immediately — it's only shown once. Paste it into the <b>API Token</b> field above.</li>
+            <li>Use the email address you log into Atlassian with as the <b>Email</b> field.</li>
+          </ol>
+        </div>
+      </details>
       <div class="row2">
         <div class="field"><label>Jira Base URL</label><input type="text" id="jira_url" value="https://shellyusa.atlassian.net"></div>
         <div class="field"><label>Jira Project Key</label><input type="text" id="jira_project" placeholder="QAT"></div>
       </div>
-      <div class="sep">Advanced (auto-loaded from server)</div>
-      <div class="field"><label>Community API Key</label><input type="password" id="nodebb_key" placeholder="Auto-loaded"></div>
-      <div class="field"><label>Gemini API Key</label><input type="password" id="gemini_key" placeholder="Auto-loaded"></div>
+      <div class="sep">API Keys</div>
+      <div class="field"><label>Community API Key</label><input type="password" id="nodebb_key" placeholder="Enter your key"></div>
+      <details class="howto">
+        <summary>How do I get a Community API key?</summary>
+        <div class="howto-body">
+          <ol>
+            <li>This key is issued from the forum's admin panel (Admin CP), not something each member creates for themselves.</li>
+            <li>If you're a forum admin: go to <b>Admin CP → System → API &amp; OAuth → REST API Keys</b> on <code>community.shelly.cloud</code>, and create or copy an existing key with read access to the QA Packs forums.</li>
+            <li>If you're not an admin, ask whoever manages the Shelly Community forum (currently Aleksandrina) to share a key with you.</li>
+            <li>Paste the key into the field above.</li>
+          </ol>
+        </div>
+      </details>
+      <div class="field"><label>Gemini API Key</label><input type="password" id="gemini_key" placeholder="Enter your key"></div>
+      <details class="howto">
+        <summary>How do I get a Gemini API key?</summary>
+        <div class="howto-body">
+          <ol>
+            <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio → API keys</a> and sign in with any Google account.</li>
+            <li>Click <code>Create API key</code>, then choose an existing Google Cloud project or let it create one for you.</li>
+            <li>Copy the generated key and paste it into the field above.</li>
+            <li>The free tier covers normal usage for this tool; you don't need a paid Google Cloud plan to get started.</li>
+          </ol>
+        </div>
+      </details>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
         <button class="btn btn-primary btn-sm btn-save-cred" onclick="saveCreds()">💾 Save</button>
         <button class="btn btn-sm btn-clr-cred" onclick="clearCreds()">Clear</button>
@@ -969,12 +1017,20 @@ function renderPanel(key, items, isBugs) {
   const openBtn= document.getElementById(btnId);
   const noun   = key === 'bugs' ? 'bug' : 'improvement proposal';
 
+  const selAllBtn   = document.getElementById(key === 'bugs' ? 'btn-selall-bugs' : `btn-selall-${key}`);
+  const deselAllBtn = document.getElementById(key === 'bugs' ? 'btn-deselall-bugs' : `btn-deselall-${key}`);
+
   if (!items.length) {
     panel.innerHTML = `<div class="fb-empty">None reported.</div>`;
     if (lbl) lbl.textContent = `No ${noun}s found`;
     if (openBtn) openBtn.disabled = true;
+    if (selAllBtn) selAllBtn.disabled = true;
+    if (deselAllBtn) deselAllBtn.disabled = true;
     return;
   }
+
+  if (selAllBtn) selAllBtn.disabled = false;
+  if (deselAllBtn) deselAllBtn.disabled = false;
 
   if (lbl) lbl.textContent = `${items.length} ${noun}${items.length>1?'s':''} found — select to open in Jira`;
 
@@ -1009,6 +1065,13 @@ function updateSel(key) {
   const noun    = key === 'bugs' ? 'bug' : 'improvement proposal';
   if (btn) { btn.disabled = checked === 0; btn.textContent = checked > 0 ? `Open ${checked} in Jira` : 'Open selected in Jira'; }
   if (lbl) lbl.textContent = checked > 0 ? `${checked} selected` : `${total} ${noun}${total!==1?'s':''} — select to open in Jira`;
+}
+
+function selectAll(key, checked) {
+  document.querySelectorAll(`.${key}-cb`).forEach(cb => {
+    if (!cb.disabled) cb.checked = checked;  // skip ones already sent to Jira
+  });
+  updateSel(key);
 }
 
 async function openSelected(key) {
@@ -1437,24 +1500,65 @@ async function runAnalysis() {
   if (btn) btn.disabled=false;
 }
 
+// ── Deep link from daily email ───────────────────────────────────────────────
+// The daily digest links to ?topic_id=NNNN — findings for that topic were
+// already computed by daily_qa.py and saved to qa.db, so load them straight
+// from there instead of re-running the AI analysis in the browser.
+async function loadFromEmailLink(topicId) {
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/qa-findings?topic_id=${encodeURIComponent(topicId)}`);
+    if (!r.ok) throw new Error(`Server returned ${r.status}`);
+    const data = await r.json();
+    if (!data.count) {
+      toast(`No saved findings yet for topic #${topicId}.`);
+      return;
+    }
+    const topic = data.topic || {};
+    meta = {
+      deviceName:   topic.title ? topic.title.replace(/\s*[-–]\s*feedback.*/i, '').trim() : `Topic #${topicId}`,
+      packageLabel: '',
+      fwVersion:    '',
+      topicUrl:     topic.url || '',
+      postCount:    data.count,
+      devicesSent:  null
+    };
+    if (topic.url) {
+      const urlField = document.getElementById('topic_url');
+      if (urlField) urlField.value = topic.url;
+    }
+    analysis = data.results;
+    renderAll(analysis);
+    goPage('bugs', document.querySelectorAll('.nav-item')[2]);
+    toast(`Loaded from your daily digest — ${(analysis.bugs||[]).length} bugs · ${(analysis.ideas||[]).length} improvements`, 5000);
+  } catch(e) {
+    toast(`Could not load findings from link: ${e.message}`, 5000);
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCreds();
   loadPrompt();
-  // Auto-load from server config
+  // Auto-load ONLY non-secret defaults from the server (Jira URL/project).
+  // Every API key and personal token is entered manually in Settings and
+  // lives only in this browser's localStorage -- the server never stores
+  // or serves them, since this page is public.
   fetch(`${PROXY_BASE}/config`)
     .then(r=>r.json())
     .then(cfg=>{
-      const fields={nodebb_key:cfg.ips_key,gemini_key:cfg.gemini_key,atl_email:cfg.atl_email,atl_token:cfg.atl_token,jira_url:cfg.jira_url,jira_project:cfg.jira_project};
+      const fields={jira_url:cfg.jira_url,jira_project:cfg.jira_project};
       let loaded=false;
       Object.entries(fields).forEach(([id,val])=>{const el=document.getElementById(id);if(el&&val&&!el.value){el.value=val;loaded=true;}});
-      if (loaded) flash('cred-status','🔑 Loaded from server',3000);
+      if (loaded) flash('cred-status','🔑 Defaults loaded',3000);
     })
     .catch(()=>{});
   CRED_IDS.forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('change',saveCreds);});
   document.getElementById('master_prompt')?.addEventListener('change',savePrompt);
   // Load home topics
   loadHomeTopics();
+  // If opened from the daily email's per-topic link, load that topic's findings
+  const topicIdParam = new URLSearchParams(window.location.search).get('topic_id');
+  if (topicIdParam) loadFromEmailLink(topicIdParam);
 });
 </script>
 </body>
