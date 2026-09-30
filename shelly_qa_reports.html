@@ -38,9 +38,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 }
 .nav-logo{display:flex;align-items:center;gap:10px;margin-right:32px;flex-shrink:0}
 .nav-logo img{height:22px;width:auto}
-.nav-divider{width:1px;height:20px;background:var(--border);margin:0 8px}
+.nav-divider{width:1px;height:20px;background:var(--border);margin:0 8px;flex-shrink:0}
 .nav-title{font-size:13px;font-weight:600;color:var(--text2)}
-.nav-items{display:flex;align-items:center;gap:2px;flex:1}
+.nav-items{display:flex;align-items:center;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none}
+.nav-items::-webkit-scrollbar{display:none}
 .nav-item{
   position:relative;padding:6px 12px;border-radius:var(--radius-sm);
   font-size:13px;font-weight:500;color:var(--text2);
@@ -339,30 +340,34 @@ th.sortable:hover{color:var(--text)}
   </div>
 
   <div class="nav-items">
-    <button class="nav-item active" onclick="goPage('home',this)">🏠 Home</button>
+    <button class="nav-item active" onclick="goPage('home',this)" title="Overview of the current QA pack and recent activity">🏠 Home</button>
 
-    <button class="nav-item" onclick="goPage('analyze',this)">
+    <button class="nav-item" onclick="goPage('analyze',this)" title="Paste a forum topic URL and run AI analysis to extract bugs, ideas and feedback">
       🔍 Analyze
     </button>
 
-    <button class="nav-item" id="nav-results-btn" onclick="goPage('bugs',this)">
-      🐛 Bugs <span class="badge" id="cnt-bugs" style="margin-left:2px"></span>
+    <span class="nav-divider"></span>
+
+    <button class="nav-item" id="nav-results-btn" onclick="goPage('feedback',this)" title="Everything the AI extracted from the last analysis: bugs, improvements, positive feedback, concerns, and publishing to Confluence">
+      📋 Feedback <span class="badge" id="cnt-feedback" style="margin-left:2px"></span>
     </button>
 
-    <button class="nav-item" onclick="goPage('improvements',this)">
-      💡 Improvements <span class="badge" id="b-ideas" style="margin-left:2px">0</span>
+    <span class="nav-divider"></span>
+
+    <button class="nav-item" onclick="goPage('community',this)" title="People in this QA pack: who applied and how active they are on the forum, or browse all registered forum members">
+      👥 Community
     </button>
 
-    <button class="nav-item" onclick="goPage('confluence',this)" id="nav-confluence">
-      📄 Confluence
+    <button class="nav-item" onclick="goPage('logistics',this)" title="Convert a device-ordering form export into a ready-to-ship logistics list">
+      📦 Logistics
     </button>
 
-    <button class="nav-item" onclick="goPage('externalqa',this)">
-      👥 External QAs
+    <button class="nav-item" onclick="goPage('participation',this)" title="Look up which devices/colors were shipped to a specific person, filterable by user, device or package">
+      🔎 Participation
     </button>
 
-    <button class="nav-item" onclick="goPage('members',this)">
-      🌐 Members
+    <button class="nav-item" onclick="goPage('stats',this)" title="Trends across all saved scans: who's most/least active, who never participates">
+      📊 Statistics
     </button>
   </div>
 
@@ -469,121 +474,216 @@ th.sortable:hover{color:var(--text)}
   </div>
 </div>
 
-<!-- BUGS -->
-<div class="page" id="page-bugs">
+<!-- FEEDBACK (Bugs + Improvements + Positive + Concerns, combined) -->
+<div class="page" id="page-feedback">
   <div class="page-header">
-    <h1>Bugs</h1>
-    <p>Extracted from forum feedback — select and open in Jira</p>
-  </div>
-  <div class="toolbar">
-    <span class="toolbar-label" id="bugs-lbl">No bugs found yet</span>
-    <button class="btn btn-sm" id="btn-selall-bugs" onclick="selectAll('bugs', true)" disabled>Select all</button>
-    <button class="btn btn-sm" id="btn-deselall-bugs" onclick="selectAll('bugs', false)" disabled>Deselect all</button>
-    <button class="btn btn-primary btn-sm" id="btn-open-bugs" onclick="openSelected('bugs')" disabled>Open selected in Jira</button>
-  </div>
-  <div class="fb-list" id="panel-bugs"><div class="fb-empty">Run an analysis first.</div></div>
-</div>
-
-<!-- IMPROVEMENTS -->
-<div class="page" id="page-improvements">
-  <div class="page-header">
-    <h1>Improvement Proposals</h1>
-    <p>Feature requests and ideas from testers</p>
+    <h1>Feedback</h1>
+    <p>Everything the AI extracted from the last analysis, grouped by category. Bugs and improvements can be opened as Jira issues; positive feedback and concerns are for context.</p>
   </div>
   <div class="rtabs">
-    <button class="rtab active" onclick="goRtab('ideas',this)">💡 All proposals <span class="badge" id="b-ideas-tab">0</span></button>
+    <button class="rtab active" onclick="goRtab('bugs',this)" title="Reported problems and defects — select to open as Jira bugs">🐛 Bugs <span class="badge" id="b-bugs-tab">0</span></button>
+    <button class="rtab" onclick="goRtab('ideas',this)" title="Feature requests and suggestions — select to open as Jira tasks">💡 Improvements <span class="badge" id="b-ideas-tab">0</span></button>
+    <button class="rtab" onclick="goRtab('positive',this)" title="What testers liked — read-only, included in the Confluence report">✅ Positive <span class="badge" id="b-positive-tab">0</span></button>
+    <button class="rtab" onclick="goRtab('negative',this)" title="Complaints or concerns that aren't concrete bugs — read-only, included in the Confluence report">⚠️ Concerns <span class="badge" id="b-negative-tab">0</span></button>
+    <button class="rtab" onclick="goRtab('confluence',this)" title="Publish everything above as a report page on Confluence">📄 Report</button>
   </div>
-  <div class="toolbar" id="ideas-toolbar" style="display:none">
-    <span class="toolbar-label" id="ideas-lbl">No proposals found</span>
-    <button class="btn btn-sm" id="btn-selall-ideas" onclick="selectAll('ideas', true)" disabled>Select all</button>
-    <button class="btn btn-sm" id="btn-deselall-ideas" onclick="selectAll('ideas', false)" disabled>Deselect all</button>
-    <button class="btn btn-primary btn-sm" id="btn-open-ideas" onclick="openSelected('ideas')" disabled>Open selected in Jira</button>
-  </div>
-  <div class="rpanel active" id="panel-ideas"><div class="fb-empty">Run an analysis first.</div></div>
-</div>
 
-<!-- CONFLUENCE -->
-<div class="page" id="page-confluence">
-  <div class="page-header">
-    <h1>Confluence Report</h1>
-    <p>Publish your analysis as a Confluence page under External QA Reports</p>
+  <div class="rpanel active" id="panel-bugs">
+    <div class="toolbar">
+      <span class="toolbar-label" id="bugs-lbl">No bugs found yet</span>
+      <button class="btn btn-sm" id="btn-selall-bugs" onclick="selectAll('bugs', true)" disabled>Select all</button>
+      <button class="btn btn-sm" id="btn-deselall-bugs" onclick="selectAll('bugs', false)" disabled>Deselect all</button>
+      <button class="btn btn-primary btn-sm" id="btn-open-bugs" onclick="openSelected('bugs')" disabled>Open selected in Jira</button>
+    </div>
+    <div class="fb-list" id="list-bugs"><div class="fb-empty">Run an analysis first.</div></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start">
-    <div>
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><span class="card-title">Publish</span></div>
-        <div class="card-body">
-          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">The report will be created or updated under <strong>External QA Reports</strong> in the TTC space. All Jira issues you opened will be linked.</p>
-          <div class="conf-actions">
-            <button class="btn btn-secondary" onclick="showPreview()">👁 Preview</button>
-            <button class="btn btn-primary" id="conf-btn" onclick="publishConfluence()">Publish to Confluence</button>
-            <a id="conf-open-link" href="#" target="_blank" style="display:none">↗ Open in Confluence</a>
+
+  <div class="rpanel" id="panel-ideas">
+    <div class="toolbar" id="ideas-toolbar" style="display:none">
+      <span class="toolbar-label" id="ideas-lbl">No proposals found</span>
+      <button class="btn btn-sm" id="btn-selall-ideas" onclick="selectAll('ideas', true)" disabled>Select all</button>
+      <button class="btn btn-sm" id="btn-deselall-ideas" onclick="selectAll('ideas', false)" disabled>Deselect all</button>
+      <button class="btn btn-primary btn-sm" id="btn-open-ideas" onclick="openSelected('ideas')" disabled>Open selected in Jira</button>
+    </div>
+    <div class="fb-list" id="list-ideas"><div class="fb-empty">Run an analysis first.</div></div>
+  </div>
+
+  <div class="rpanel" id="panel-positive">
+    <div class="fb-list" id="list-positive"><div class="fb-empty">Run an analysis first.</div></div>
+  </div>
+
+  <div class="rpanel" id="panel-negative">
+    <div class="fb-list" id="list-negative"><div class="fb-empty">Run an analysis first.</div></div>
+  </div>
+
+  <div class="rpanel" id="panel-confluence">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start">
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-header"><span class="card-title">Publish</span></div>
+          <div class="card-body">
+            <p style="font-size:13px;color:var(--text2);margin-bottom:16px">The report will be created or updated under <strong>External QA Reports</strong> in the TTC space. All Jira issues you opened will be linked.</p>
+            <div class="conf-actions">
+              <button class="btn btn-secondary" onclick="showPreview()">👁 Preview</button>
+              <button class="btn btn-primary" id="conf-btn" onclick="publishConfluence()">Publish to Confluence</button>
+              <a id="conf-open-link" href="#" target="_blank" style="display:none">↗ Open in Confluence</a>
+            </div>
+            <div id="conf-result" style="font-size:13px;display:none;margin-top:8px;color:var(--green)"></div>
           </div>
-          <div id="conf-result" style="font-size:13px;display:none;margin-top:8px;color:var(--green)"></div>
+        </div>
+        <div class="card" id="jira-card" style="display:none">
+          <div class="card-header"><span class="card-title">Jira Issues Created</span></div>
+          <div class="card-body" style="padding:0 20px"><div id="jira-list"></div></div>
         </div>
       </div>
-      <div class="card" id="jira-card" style="display:none">
-        <div class="card-header"><span class="card-title">Jira Issues Created</span></div>
-        <div class="card-body" style="padding:0 20px"><div id="jira-list"></div></div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">What's included</span></div>
-        <div class="card-body" style="font-size:12px;color:var(--text2);line-height:1.9">
-          ✅ Package summary table<br>
-          🐛 All bugs with Jira links<br>
-          💡 Improvement proposals<br>
-          ✅ Positive feedback<br>
-          👥 External QA applicants<br>
-          📊 Participation rate
+      <div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">What's included</span></div>
+          <div class="card-body" style="font-size:12px;color:var(--text2);line-height:1.9">
+            ✅ Package summary table<br>
+            🐛 All bugs with Jira links<br>
+            💡 Improvement proposals<br>
+            ✅ Positive feedback<br>
+            👥 External QA applicants<br>
+            📊 Participation rate
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- EXTERNAL QAs -->
-<div class="page" id="page-externalqa">
+<!-- COMMUNITY (External QAs + Members, combined) -->
+<div class="page" id="page-community">
   <div class="page-header">
-    <h1>External QAs</h1>
-    <p>People who applied for this QA package — cross-referenced with forum activity to identify non-contributors</p>
+    <h1>Community</h1>
+    <p>People connected to this QA program — who applied and how active they are, or anyone registered on the forum.</p>
+  </div>
+  <div class="rtabs">
+    <button class="rtab active" onclick="goRtab('externalqa',this)" title="People who applied for the current QA package, cross-referenced with forum activity to spot non-contributors">👥 External QAs</button>
+    <button class="rtab" onclick="goRtab('members',this)" title="Browse and filter every registered user on the Shelly Community forum, not just this package's applicants">🌐 All Members</button>
+  </div>
+
+  <div class="rpanel active" id="panel-externalqa">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Upload Microsoft Forms responses</span></div>
+      <div class="card-body">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Upload the applicant list for this QA package. Each upload is saved as a scan, so trends show up on the Statistics tab.</p>
+        <div class="upload-area" id="upload-area" onclick="document.getElementById('excel-input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="handleExcelDrop(event)">
+          <div class="upload-icon">📊</div>
+          <div class="upload-title">Click to upload or drag & drop</div>
+          <div class="upload-sub">.xlsx or .csv from Microsoft Forms</div>
+          <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
+        </div>
+        <div id="applicants-summary" style="display:none;margin-bottom:14px"></div>
+        <div id="applicants-table"><div class="fb-empty">No file uploaded yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rpanel" id="panel-members">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Filter members</span></div>
+      <div class="card-body">
+        <div class="filter-bar">
+          <div class="field"><label>Country</label><input type="text" id="members-country" placeholder="e.g. France" oninput="filterMembers()"></div>
+          <div class="field"><label>Email domain</label><input type="text" id="members-domain" placeholder="e.g. .fr" oninput="filterMembers()"></div>
+          <button class="btn btn-primary" onclick="loadMembers()" style="margin-top:20px">Load members</button>
+        </div>
+        <div id="members-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;display:none"></div>
+        <div class="table-wrap"><div id="members-table"><div class="fb-empty">Click "Load members" to fetch from the forum.</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGISTICS (Ordering -> Logistics converter) -->
+<div class="page" id="page-logistics">
+  <div class="page-header">
+    <h1>Ordering → Logistics</h1>
+    <p>Convert a Microsoft Forms device-ordering export into a logistics-ready shipment list</p>
   </div>
   <div class="card">
-    <div class="card-header"><span class="card-title">Upload Microsoft Forms responses</span></div>
+    <div class="card-header"><span class="card-title">Upload form responses</span></div>
     <div class="card-body">
-      <div class="upload-area" id="upload-area" onclick="document.getElementById('excel-input').click()"
+      <div class="upload-area" id="logi-upload-area" onclick="document.getElementById('logi-input').click()"
         ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
         ondragleave="this.style.borderColor=''"
-        ondrop="handleExcelDrop(event)">
-        <div class="upload-icon">📊</div>
+        ondrop="handleLogiDrop(event)">
+        <div class="upload-icon">📦</div>
         <div class="upload-title">Click to upload or drag & drop</div>
-        <div class="upload-sub">.xlsx or .csv from Microsoft Forms</div>
-        <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">
+        <div class="upload-sub">.xlsx or .csv ordering form export</div>
+        <input type="file" id="logi-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLogiFile(this.files[0])">
       </div>
-      <div id="applicants-summary" style="display:none;margin-bottom:14px"></div>
-      <div id="applicants-table"><div class="fb-empty">No file uploaded yet.</div></div>
+      <div class="row2" style="margin-top:14px">
+        <div class="field"><label>Package label</label><input type="text" id="logi-package-label" placeholder="e.g. QA Pack September 2026" onchange="logiOnPackageLabelChange()"></div>
+        <div class="field" style="align-self:end">
+          <button class="btn btn-primary" id="logi-download-btn" onclick="downloadLogistics()" disabled>⬇ Download logistics .xlsx</button>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:6px">Uploaded rows are saved to Participation history automatically — re-uploading the same data just updates it, it won't duplicate.</p>
+      <div id="logi-totals" style="margin-top:14px"></div>
+      <div id="logi-preview" style="margin-top:14px"></div>
+      <div style="margin-top:14px"><span id="logi-save-status" style="font-size:12px;color:var(--muted)"></span></div>
     </div>
   </div>
 </div>
 
-<!-- MEMBERS -->
-<div class="page" id="page-members">
+<!-- PARTICIPATION (device shipment filters) -->
+<div class="page" id="page-participation">
   <div class="page-header">
-    <h1>Community Members</h1>
-    <p>Browse and filter all registered Shelly Community forum users</p>
+    <h1>Participation</h1>
+    <p>Filter historical device shipments by user, name, device or color</p>
   </div>
   <div class="card">
-    <div class="card-header"><span class="card-title">Filter members</span></div>
+    <div class="card-header"><span class="card-title">Filters</span></div>
     <div class="card-body">
       <div class="filter-bar">
-        <div class="field"><label>Country</label><input type="text" id="members-country" placeholder="e.g. France" oninput="filterMembers()"></div>
-        <div class="field"><label>Email domain</label><input type="text" id="members-domain" placeholder="e.g. .fr" oninput="filterMembers()"></div>
-        <button class="btn btn-primary" onclick="loadMembers()" style="margin-top:20px">Load members</button>
+        <div class="field"><label>User (name / email / nickname)</label><input type="text" id="part-user" placeholder="Search..." oninput="loadParticipation()"></div>
+        <div class="field"><label>Device</label><select id="part-device" onchange="loadParticipation()"><option value="">All devices</option></select></div>
+        <div class="field"><label>Color</label><select id="part-color" onchange="loadParticipation()"><option value="">All colors</option></select></div>
+        <div class="field"><label>Package</label><select id="part-package" onchange="loadParticipation()"><option value="">All packages</option></select></div>
+        <button class="btn btn-primary" onclick="loadParticipation()" style="margin-top:20px">Refresh</button>
       </div>
-      <div id="members-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;display:none"></div>
-      <div class="table-wrap"><div id="members-table"><div class="fb-empty">Click "Load members" to fetch from the forum.</div></div></div>
+      <div id="part-status" style="font-size:12px;color:var(--muted);margin:10px 0;display:none"></div>
+      <div class="table-wrap"><div id="part-table"><div class="fb-empty">No shipment data yet — upload a file on the Logistics tab first.</div></div></div>
     </div>
+  </div>
+</div>
+
+<!-- STATISTICS dashboard -->
+<div class="page" id="page-stats">
+  <div class="page-header">
+    <h1>Statistics</h1>
+    <p>Participation trends across all saved External QA scans</p>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Filters</span></div>
+    <div class="card-body">
+      <div class="filter-bar">
+        <div class="field"><label>Nickname</label><input type="text" id="stats-nickname" oninput="loadStats()"></div>
+        <div class="field"><label>Email</label><input type="text" id="stats-email" oninput="loadStats()"></div>
+        <div class="field"><label>Name</label><input type="text" id="stats-name" oninput="loadStats()"></div>
+        <div class="field"><label>Since</label><input type="date" id="stats-since" onchange="loadStats()"></div>
+        <button class="btn btn-primary" onclick="loadStats()" style="margin-top:20px">Refresh</button>
+      </div>
+    </div>
+  </div>
+  <div id="stats-summary" style="margin:14px 0"></div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Most active</span></div>
+    <div class="card-body"><div class="table-wrap" id="stats-most-active"><div class="fb-empty">No scans saved yet.</div></div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-header"><span class="card-title">Least active</span></div>
+    <div class="card-body"><div class="table-wrap" id="stats-least-active"><div class="fb-empty">No scans saved yet.</div></div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-header"><span class="card-title">Never participated</span></div>
+    <div class="card-body"><div class="table-wrap" id="stats-never-active"><div class="fb-empty">No scans saved yet.</div></div></div>
   </div>
 </div>
 
@@ -633,6 +733,17 @@ th.sortable:hover{color:var(--text)}
             <li>If you're a forum admin: go to <b>Admin CP → System → API &amp; OAuth → REST API Keys</b> on <code>community.shelly.cloud</code>, and create or copy an existing key with read access to the QA Packs forums.</li>
             <li>If you're not an admin, ask whoever manages the Shelly Community forum (currently Aleksandrina) to share a key with you.</li>
             <li>Paste the key into the field above.</li>
+          </ol>
+        </div>
+      </details>
+      <div class="field"><label>Team Access Code <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="password" id="team_access_code" placeholder="Ask Aleksandrina for the team code"></div>
+      <details class="howto">
+        <summary>What is the Team Access Code?</summary>
+        <div class="howto-body">
+          <ol>
+            <li>If you don't want to create your own Community API key, ask Aleksandrina (or whoever manages this tool) for the shared <b>team access code</b>.</li>
+            <li>Paste it above and save — the Community API key will then be filled in automatically for you, without you needing your own key.</li>
+            <li>This code is shared out-of-band (Slack/email), never posted publicly, and only unlocks a dedicated read-only Community key, not anyone's personal Atlassian credentials.</li>
           </ol>
         </div>
       </details>
@@ -691,7 +802,7 @@ th.sortable:hover{color:var(--text)}
 // ── State ─────────────────────────────────────────────────────────────────────
 const PROXY_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:5001'
-  : 'https://ink-further-sensors-strategy.trycloudflare.com';
+  : 'https://skilled-quit-older-analog.trycloudflare.com';
 
 let analysis = null;
 let meta     = {};
@@ -701,14 +812,22 @@ function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const next   = isDark ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
+  const btn = document.getElementById('theme-btn');
+  btn.textContent = isDark ? '🌙' : '☀️';
+  btn.title = isDark ? 'Switch to dark mode' : 'Switch to light mode';
   localStorage.setItem('shelly_theme', next);
 }
 (function() {
-  const t = localStorage.getItem('shelly_theme') || 'light';
+  // Respect an explicit choice first; otherwise follow the OS/browser's
+  // light/dark preference so the page matches on first visit.
+  const stored = localStorage.getItem('shelly_theme');
+  const t = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.setAttribute('data-theme', t);
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('theme-btn').textContent = t === 'dark' ? '☀️' : '🌙';
+    const btn = document.getElementById('theme-btn');
+    if (!btn) return;
+    btn.textContent = t === 'dark' ? '☀️' : '🌙';
+    btn.title = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
   });
 })();
 
@@ -719,6 +838,8 @@ function goPage(name, btn) {
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
   if (btn) btn.classList.add('active');
+  if (name === 'stats') loadStats();
+  if (name === 'participation') loadParticipation();
 }
 function goRtab(name, btn) {
   document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
@@ -733,7 +854,7 @@ function enableNav(id) {
 }
 
 // ── Credentials ───────────────────────────────────────────────────────────────
-const CRED_IDS = ['nodebb_key','atl_email','atl_token','jira_url','jira_project','gemini_key'];
+const CRED_IDS = ['nodebb_key','atl_email','atl_token','jira_url','jira_project','gemini_key','team_access_code'];
 function saveCreds() {
   const c = {};
   CRED_IDS.forEach(id => { const v = document.getElementById(id)?.value.trim(); if (v) c[id] = v; });
@@ -977,14 +1098,22 @@ function analyze(posts, deviceName, fwVersion) {
 function renderAll(a) {
   const bc = (a.bugs||[]).length;
   const ic = (a.ideas||[]).length;
+  const pc = (a.positive||[]).length;
+  const nc = (a.negative||[]).length;
 
-  // Nav badges
-  const cntBugs = document.getElementById('cnt-bugs');
-  if (cntBugs) cntBugs.textContent = bc ? bc : '';
-  const bIdeas = document.getElementById('b-ideas');
-  if (bIdeas) bIdeas.textContent = ic;
+  // Nav badge — single combined count on the merged Feedback tab
+  const cntFeedback = document.getElementById('cnt-feedback');
+  if (cntFeedback) cntFeedback.textContent = (bc + ic) ? (bc + ic) : '';
+
+  // Rtab badges
+  const bBugsTab = document.getElementById('b-bugs-tab');
+  if (bBugsTab) bBugsTab.textContent = bc;
   const bIdeasTab = document.getElementById('b-ideas-tab');
   if (bIdeasTab) bIdeasTab.textContent = ic;
+  const bPositiveTab = document.getElementById('b-positive-tab');
+  if (bPositiveTab) bPositiveTab.textContent = pc;
+  const bNegativeTab = document.getElementById('b-negative-tab');
+  if (bNegativeTab) bNegativeTab.textContent = nc;
 
   // Summary
   if (a.summary) {
@@ -998,8 +1127,8 @@ function renderAll(a) {
 
   renderPanel('bugs',  a.bugs  || [], true);
   renderPanel('ideas', a.ideas || [], false);
-  renderPanel('positive', a.positive || [], false);
-  renderPanel('negative', a.negative || [], false);
+  renderReadOnlyPanel('positive', a.positive || []);
+  renderReadOnlyPanel('negative', a.negative || []);
 
   // Show improvements toolbar
   const it = document.getElementById('ideas-toolbar');
@@ -1008,8 +1137,26 @@ function renderAll(a) {
   updateHomeStats();
 }
 
+// Read-only panels for positive feedback / concerns -- no checkboxes, no
+// Jira integration, just the extracted text for context.
+function renderReadOnlyPanel(key, items) {
+  const panel = document.getElementById('list-' + key);
+  if (!panel) return;
+  if (!items.length) {
+    panel.innerHTML = `<div class="fb-empty">None reported.</div>`;
+    return;
+  }
+  panel.className = 'fb-list';
+  panel.innerHTML = items.map(item => `<div class="fb-item">
+    <div class="fb-text">
+      ${item.text}
+      <div class="fb-meta"><span>@${item.username}</span></div>
+    </div>
+  </div>`).join('');
+}
+
 function renderPanel(key, items, isBugs) {
-  const panel  = document.getElementById('panel-' + key);
+  const panel  = document.getElementById('list-' + key);
   if (!panel) return;
   const lblId  = key === 'bugs' ? 'bugs-lbl' : `${key}-lbl`;
   const btnId  = key === 'bugs' ? 'btn-open-bugs' : `btn-open-${key}`;
@@ -1349,6 +1496,7 @@ async function handleExcelFile(file) {
     const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
     if (!rows.length) throw new Error('No data found');
     window._applicants=rows;
+    window._applicantsFileName=file.name;
     renderApplicants(rows, window._forumUsernames||[]);
     area.innerHTML=`<div class="upload-icon">✅</div><div class="upload-title">${file.name} — ${rows.length} responses</div><div class="upload-sub" style="cursor:pointer;color:var(--blue)" onclick="document.getElementById('excel-input').click()">Upload different file</div><input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this.files[0])">`;
   } catch(e) {
@@ -1385,6 +1533,29 @@ function renderApplicants(rows, forumUsernames) {
     const color=ratio>=70?'var(--green)':ratio>=40?'var(--amber)':'var(--red)';
     summary.style.display='block';
     summary.innerHTML=`<div class="summary-box"><strong>${total}</strong> applicants &nbsp;·&nbsp; <span style="color:var(--green);font-weight:700">${active} active</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:700">${inactive} no posts</span> &nbsp;·&nbsp; Participation: <strong style="color:${color}">${ratio}%</strong></div>`;
+
+    // Persist this scan so the Statistics tab can show trends over time.
+    const participants = rows.map(row => {
+      const nickname = nicknameKey ? (row[nicknameKey]||'').trim() : '';
+      const nickLower = nickname.toLowerCase();
+      const isActive = contributors.has(nickLower) || (nickLower.length>2 && [...contributors].some(c=>c===nickLower||c.replace(/[\s._-]/g,'')===nickLower.replace(/[\s._-]/g,'')));
+      return {
+        nickname,
+        email: emailKey ? (row[emailKey]||'') : '',
+        full_name: row[nameKey] || '',
+        status: isActive ? 'active' : 'no_posts',
+      };
+    });
+    fetch(`${PROXY_BASE}/proxy/external-qa/scan`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        participants,
+        topic_id: meta.topicId || null,
+        topic_title: meta.deviceName ? `${meta.deviceName} (${meta.packageLabel||''})` : null,
+        source_file: window._applicantsFileName || null,
+      })
+    }).catch(()=>{});
   }
 }
 
@@ -1478,7 +1649,7 @@ async function runAnalysis() {
     const deviceName=document.getElementById('device_name').value.trim()||inferred;
     const packageLabel=document.getElementById('package_label').value.trim()||new Date().toLocaleString('en-US',{month:'long',year:'numeric'});
     const devicesSent=parseInt(document.getElementById('devices_sent').value.trim())||null;
-    meta={deviceName,packageLabel,fwVersion,topicUrl,postCount:0,devicesSent};
+    meta={deviceName,packageLabel,fwVersion,topicUrl,topicId,postCount:0,devicesSent};
     setProgress(2,'Fetching posts...');
     logLine(`Topic #${topicId}  |  ${deviceName}  |  ${packageLabel}${fwVersion?'  |  FW '+fwVersion:''}`, 'linf');
     const posts=await fetchPosts(topicId,nodebbKey);
@@ -1494,7 +1665,7 @@ async function runAnalysis() {
     logLine(`Done — ${(result.bugs||[]).length} bugs · ${(result.ideas||[]).length} improvements`,'lok');
     renderAll(result);
     // Navigate to Bugs tab
-    goPage('bugs', document.querySelectorAll('.nav-item')[2]);
+    goPage('feedback', document.querySelectorAll('.nav-item')[2]);
     if (window._applicants) renderApplicants(window._applicants, window._forumUsernames);
   } catch(e) { logLine('Error: '+e.message,'lerr'); }
   if (btn) btn.disabled=false;
@@ -1528,10 +1699,277 @@ async function loadFromEmailLink(topicId) {
     }
     analysis = data.results;
     renderAll(analysis);
-    goPage('bugs', document.querySelectorAll('.nav-item')[2]);
+    goPage('feedback', document.querySelectorAll('.nav-item')[2]);
     toast(`Loaded from your daily digest — ${(analysis.bugs||[]).length} bugs · ${(analysis.ideas||[]).length} improvements`, 5000);
   } catch(e) {
     toast(`Could not load findings from link: ${e.message}`, 5000);
+  }
+}
+
+// ── Ordering → Logistics converter ──────────────────────────────────────────────
+const LOGI_POSITIVE_PHRASES = ['i want', 'i will use'];
+const LOGI_META_EXACT  = new Set(['id','name','email']);
+const LOGI_META_STARTS = ['nickname','email','full name','phone','country','address','city'];
+
+function logiShouldInclude(val) {
+  const s = String(val ?? '').toLowerCase();
+  return LOGI_POSITIVE_PHRASES.some(p => s.includes(p));
+}
+function logiIsMeta(col) {
+  const c = (col || '').toLowerCase().trim();
+  return LOGI_META_EXACT.has(c) || LOGI_META_STARTS.some(p => c.startsWith(p));
+}
+function logiIsColor(col) {
+  const c = (col || '').toLowerCase();
+  return c.includes('color') || c.includes('colour');
+}
+function logiDetectDevices(keys) {
+  const devices = [];
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (logiIsMeta(key) || logiIsColor(key)) continue;
+    const next = keys[i + 1];
+    const colorCol = (next && logiIsColor(next)) ? next : null;
+    devices.push({ key, colorCol });
+  }
+  return devices;
+}
+function logiFindFirst(keys, prefixes) {
+  return keys.find(k => prefixes.some(p => (k || '').toLowerCase().trim().startsWith(p))) || null;
+}
+
+let _logiRows = null, _logiConverted = null, _logiTotals = null;
+
+function handleLogiDrop(e) {
+  e.preventDefault();
+  document.getElementById('logi-upload-area').style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file) handleLogiFile(file);
+}
+
+async function handleLogiFile(file) {
+  if (!file) return;
+  const area = document.getElementById('logi-upload-area');
+  area.innerHTML = `<div class="upload-icon">⏳</div><div class="upload-title">Reading ${file.name}...</div>`;
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('SheetJS not loaded');
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!rows.length) throw new Error('No data found');
+    _logiRows = rows;
+    window._logiFileName = file.name;
+    logiConvertAndRender();
+    area.innerHTML = `<div class="upload-icon">✅</div><div class="upload-title">${file.name} — ${rows.length} responses</div><div class="upload-sub" style="cursor:pointer;color:var(--blue)" onclick="document.getElementById('logi-input').click()">Upload different file</div><input type="file" id="logi-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLogiFile(this.files[0])">`;
+  } catch (e) {
+    area.innerHTML = `<div class="upload-icon">❌</div><div class="upload-title" style="color:var(--red)">${e.message}</div><div class="upload-sub" style="cursor:pointer" onclick="document.getElementById('logi-input').click()">Try again</div><input type="file" id="logi-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLogiFile(this.files[0])">`;
+  }
+}
+
+function logiConvert(rows) {
+  const keys = Object.keys(rows[0] || {});
+  const devices  = logiDetectDevices(keys);
+  const nameKey  = logiFindFirst(keys, ['full name', 'name']);
+  const emailKey = logiFindFirst(keys, ['email']);
+  const nickKey  = logiFindFirst(keys, ['nickname']);
+  const phoneKey = logiFindFirst(keys, ['phone']);
+  const countryKey = logiFindFirst(keys, ['country']);
+  const addressKey = logiFindFirst(keys, ['address']);
+  const cityKey     = logiFindFirst(keys, ['city']);
+
+  const totals = {}; // deviceName -> { count, answers:{}, colors:{} }
+  const out = [];    // one row per respondent with any included device
+  const shipmentRows = []; // flat rows for backend persistence
+
+  rows.forEach(row => {
+    const lines = [];
+    devices.forEach(({ key, colorCol }) => {
+      const val = row[key];
+      if (!logiShouldInclude(val)) return;
+      const devName = key;
+      const color = colorCol ? String(row[colorCol] ?? '').trim() : '';
+      lines.push(`• ${devName} - 1 pc${color ? `  Color: ${color}` : ''}`);
+      if (!totals[devName]) totals[devName] = { count: 0, answers: {}, colors: {} };
+      totals[devName].count++;
+      const ansStr = String(val).trim();
+      totals[devName].answers[ansStr] = (totals[devName].answers[ansStr] || 0) + 1;
+      if (color) totals[devName].colors[color] = (totals[devName].colors[color] || 0) + 1;
+      shipmentRows.push({
+        nickname: nickKey ? row[nickKey] : '', email: emailKey ? row[emailKey] : '',
+        full_name: nameKey ? row[nameKey] : '', country: countryKey ? row[countryKey] : '',
+        city: cityKey ? row[cityKey] : '', address: addressKey ? row[addressKey] : '',
+        phone: phoneKey ? row[phoneKey] : '', device: devName, color,
+      });
+    });
+    if (!lines.length) return;
+    out.push({
+      Name: nameKey ? row[nameKey] : '', 'Forum Nickname': nickKey ? row[nickKey] : '',
+      Country: countryKey ? row[countryKey] : '', 'City, Postal Code': cityKey ? row[cityKey] : '',
+      Address: addressKey ? row[addressKey] : '', 'Phone Number': phoneKey ? row[phoneKey] : '',
+      '|': lines.join('\n'), 'Tracking number': '', 'E-mail': emailKey ? row[emailKey] : '',
+      'SAP BP ID': '', 'SAP SO': '', 'SAP OBD': '', 'SAP INV': '',
+    });
+  });
+
+  return { out, totals, shipmentRows };
+}
+
+function logiConvertAndRender() {
+  if (!_logiRows) return;
+  const { out, totals, shipmentRows } = logiConvert(_logiRows);
+  _logiConverted = out;
+  _logiTotals = totals;
+  window._logiShipmentRows = shipmentRows;
+
+  const totalsEl = document.getElementById('logi-totals');
+  const deviceNames = Object.keys(totals);
+  if (!deviceNames.length) {
+    totalsEl.innerHTML = `<div class="fb-empty">No matching responses found ("I want" / "I will use").</div>`;
+  } else {
+    const rowsHtml = deviceNames.map(dev => {
+      const t = totals[dev];
+      const colorBreakdown = Object.entries(t.colors).map(([c, n]) => `${c}: ${n}`).join(', ') || '—';
+      return `<tr><td style="padding:9px 12px;font-size:13px;font-weight:600">${dev}</td><td style="padding:9px 12px;font-size:13px;text-align:center;font-weight:700;color:var(--blue)">${t.count}</td><td style="padding:9px 12px;font-size:12px;color:var(--muted)">${colorBreakdown}</td></tr>`;
+    }).join('');
+    totalsEl.innerHTML = `<div class="table-wrap"><table><thead><tr><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Device</th><th style="background:var(--surf2);padding:9px 12px;font-size:11px;text-transform:uppercase;color:var(--muted)">Total</th><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Colors</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  }
+
+  const previewEl = document.getElementById('logi-preview');
+  if (!out.length) {
+    previewEl.innerHTML = '';
+  } else {
+    const headers = ['Name','Forum Nickname','Country','City, Postal Code','Address','Phone Number','Devices','Tracking number','E-mail'];
+    const rowsHtml = out.slice(0, 5).map(r => `<tr>${headers.map(h => {
+      const v = h === 'Devices' ? r['|'] : r[h];
+      return `<td style="padding:8px 12px;font-size:12px;white-space:pre-line">${v || ''}</td>`;
+    }).join('')}</tr>`).join('');
+    previewEl.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Preview (first 5 of ${out.length} rows)</div><div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th style="background:var(--surf2);padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">${h}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+  }
+
+  document.getElementById('logi-download-btn').disabled = !out.length;
+
+  // Persist automatically -- no manual "save" step needed. Re-uploading the
+  // same data (even under a different filename) upserts on dedup_key rather
+  // than duplicating, so this is always safe to fire on every conversion.
+  if (shipmentRows.length) saveLogisticsToHistory();
+}
+
+function logiOnPackageLabelChange() {
+  // If a file's already been converted, re-save under the corrected package
+  // label so the history reflects it -- no button needed for this either.
+  if (window._logiShipmentRows && window._logiShipmentRows.length) saveLogisticsToHistory();
+}
+
+function downloadLogistics() {
+  if (!_logiConverted || !_logiConverted.length) return;
+  const HEADERS = ['Name','Forum Nickname','Country','City, Postal Code','Address','Phone Number','|','Tracking number','E-mail','SAP BP ID','SAP SO','SAP OBD','SAP INV'];
+  const aoa = [HEADERS, ...(_logiConverted.map(r => HEADERS.map(h => r[h] ?? '')))];
+  aoa.push([]);
+  aoa.push(['TOTALS']);
+  Object.entries(_logiTotals).forEach(([dev, t]) => {
+    aoa.push([dev, t.count]);
+    Object.entries(t.colors).forEach(([c, n]) => aoa.push(['   ' + c, n]));
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Logistics');
+  XLSX.writeFile(wb, 'QA_Pack_Logistics.xlsx', { bookType: 'xlsx', cellStyles: true });
+}
+
+async function saveLogisticsToHistory() {
+  const rows = window._logiShipmentRows;
+  if (!rows || !rows.length) return;
+  const packageLabel = document.getElementById('logi-package-label').value.trim() || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const statusEl = document.getElementById('logi-save-status');
+  statusEl.textContent = '💾 Saving to Participation history...';
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/device-shipments/upload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows, package_label: packageLabel, source_file: window._logiFileName || null })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    statusEl.textContent = `✅ Saved: ${d.inserted} new, ${d.updated} updated`;
+  } catch (e) {
+    statusEl.textContent = `❌ ${e.message}`;
+  }
+}
+
+// ── Participation (device shipment) filter tab ──────────────────────────────────
+async function loadParticipation() {
+  const statusEl = document.getElementById('part-status'), tableEl = document.getElementById('part-table');
+  statusEl.style.display = 'block'; statusEl.textContent = 'Loading...';
+  const params = new URLSearchParams();
+  const user = document.getElementById('part-user').value.trim();
+  const device = document.getElementById('part-device').value;
+  const color = document.getElementById('part-color').value;
+  const pkg = document.getElementById('part-package').value;
+  if (user) params.set('user', user);
+  if (device) params.set('device', device);
+  if (color) params.set('color', color);
+  if (pkg) params.set('package_label', pkg);
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/device-shipments?${params.toString()}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    statusEl.textContent = `${d.count} shipment${d.count !== 1 ? 's' : ''}`;
+
+    const fillSelect = (id, values, current) => {
+      const el = document.getElementById(id);
+      const keep = current || el.value;
+      el.innerHTML = `<option value="">All</option>` + values.map(v => `<option value="${v}"${v===keep?' selected':''}>${v}</option>`).join('');
+    };
+    fillSelect('part-device', d.filters.devices, device);
+    fillSelect('part-color', d.filters.colors, color);
+    fillSelect('part-package', d.filters.packages, pkg);
+
+    if (!d.rows.length) { tableEl.innerHTML = `<div class="fb-empty">No shipments match these filters.</div>`; return; }
+    const cols = ['full_name','nickname','email','device','color','package_label','country','city','uploaded_at'];
+    const labels = ['Name','Nickname','Email','Device','Color','Package','Country','City','Uploaded'];
+    const rowsHtml = d.rows.map(row => `<tr>${cols.map(c => `<td style="padding:9px 12px;font-size:12px;color:var(--muted)">${row[c] || '—'}</td>`).join('')}</tr>`).join('');
+    tableEl.innerHTML = `<table><thead><tr>${labels.map(l=>`<th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">${l}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  } catch (e) {
+    statusEl.textContent = `❌ ${e.message}`;
+    tableEl.innerHTML = `<div class="fb-empty">${e.message}</div>`;
+  }
+}
+
+// ── Statistics dashboard ─────────────────────────────────────────────────────────
+async function loadStats() {
+  const params = new URLSearchParams();
+  const nickname = document.getElementById('stats-nickname').value.trim();
+  const email = document.getElementById('stats-email').value.trim();
+  const name = document.getElementById('stats-name').value.trim();
+  const since = document.getElementById('stats-since').value;
+  if (nickname) params.set('nickname', nickname);
+  if (email) params.set('email', email);
+  if (name) params.set('name', name);
+  if (since) params.set('since', since);
+
+  const summaryEl = document.getElementById('stats-summary');
+  const mostEl = document.getElementById('stats-most-active');
+  const leastEl = document.getElementById('stats-least-active');
+  const neverEl = document.getElementById('stats-never-active');
+
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+
+    summaryEl.innerHTML = `<div class="summary-box"><strong>${d.scans.length}</strong> scans saved &nbsp;·&nbsp; <strong>${d.total_people}</strong> unique people tracked &nbsp;·&nbsp; <strong style="color:var(--red)">${d.never_active.length}</strong> never active</div>`;
+
+    const peopleTable = (people, emptyMsg) => {
+      if (!people.length) return `<div class="fb-empty">${emptyMsg}</div>`;
+      const rowsHtml = people.map(p => `<tr><td style="padding:9px 12px;font-size:13px;font-weight:600">${p.full_name || '—'}</td><td style="padding:9px 12px;font-size:12px;color:var(--blue)">${p.nickname || '—'}</td><td style="padding:9px 12px;font-size:12px;color:var(--muted)">${p.email || '—'}</td><td style="padding:9px 12px;font-size:12px;text-align:center">${p.scans_appeared}</td><td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;color:${p.participation_rate>=70?'var(--green)':p.participation_rate>=40?'var(--amber)':'var(--red)'}">${p.participation_rate}%</td></tr>`).join('');
+      return `<table><thead><tr><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Name</th><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Nickname</th><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Email</th><th style="background:var(--surf2);padding:9px 12px;font-size:11px;text-transform:uppercase;color:var(--muted)">Scans</th><th style="background:var(--surf2);padding:9px 12px;font-size:11px;text-transform:uppercase;color:var(--muted)">Rate</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    };
+
+    mostEl.innerHTML  = peopleTable(d.most_active, 'No scans saved yet.');
+    leastEl.innerHTML = peopleTable(d.least_active, 'No scans saved yet.');
+    neverEl.innerHTML = peopleTable(d.never_active, 'Everyone tracked has participated at least once.');
+  } catch (e) {
+    summaryEl.innerHTML = `<div class="fb-empty">${e.message}</div>`;
   }
 }
 
@@ -1543,12 +1981,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Every API key and personal token is entered manually in Settings and
   // lives only in this browser's localStorage -- the server never stores
   // or serves them, since this page is public.
-  fetch(`${PROXY_BASE}/config`)
+  const teamCode = document.getElementById('team_access_code')?.value.trim() || '';
+  const configUrl = teamCode ? `${PROXY_BASE}/config?code=${encodeURIComponent(teamCode)}` : `${PROXY_BASE}/config`;
+  fetch(configUrl)
     .then(r=>r.json())
     .then(cfg=>{
       const fields={jira_url:cfg.jira_url,jira_project:cfg.jira_project};
       let loaded=false;
       Object.entries(fields).forEach(([id,val])=>{const el=document.getElementById(id);if(el&&val&&!el.value){el.value=val;loaded=true;}});
+      // Community key is only ever returned when the team access code above
+      // matched -- fill it in (without overwriting a key the person already
+      // entered themselves) so people who don't have their own key can still
+      // use the tool via the shared, dedicated token.
+      if (cfg.ips_key) {
+        const el = document.getElementById('nodebb_key');
+        if (el && !el.value) { el.value = cfg.ips_key; loaded = true; }
+      }
       if (loaded) flash('cred-status','🔑 Defaults loaded',3000);
     })
     .catch(()=>{});
