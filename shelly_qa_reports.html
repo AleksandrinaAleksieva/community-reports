@@ -1531,9 +1531,13 @@ function renderApplicants(rows, forumUsernames) {
   const summary=document.getElementById('applicants-summary');
   if (!rows?.length) { container.innerHTML=`<div class="fb-empty">No data.</div>`; return; }
   const allKeys=Object.keys(rows[0]);
-  const nameKey=allKeys.find(k=>/your full name/i.test(k))||allKeys.find(k=>/full.?name/i.test(k))||allKeys[0];
-  const emailKey=allKeys.find(k=>/your email/i.test(k))||allKeys.find(k=>/^email$/i.test(k));
-  const nicknameKey=allKeys.find(k=>/nickname|shelly.?forum/i.test(k));
+  // Handles both the raw Microsoft-Forms applicant export ("Your full name:",
+  // "Your email:") and an already-converted Logistics-format file (plain
+  // "Name", "E-mail" with a hyphen) -- same field-matching helper used by
+  // the Logistics converter, so both shapes extract correctly here too.
+  const nameKey=logiFindField(allKeys, /your\s+full\s*name/i, /^full\s*name$/i, /^name$/i)||allKeys[0];
+  const emailKey=logiFindField(allKeys, /your\s+email/i, /^e-?mail$/i);
+  const nicknameKey=logiFindField(allKeys, /your\s+nickname/i, /nickname/i, /shelly.?forum/i);
   const skipKeys=new Set(['ID','Start time','Completion time','Last modified time','Name','Email','_sheet_id']);
   const contributors=new Set((forumUsernames||[]).map(n=>n.toLowerCase().trim()));
   let active=0,inactive=0;
@@ -1783,6 +1787,27 @@ function logiDetectDevices(keys) {
   }
   return devices;
 }
+// Some months' files arrive already in the finished "Logistics" shape (the
+// converter's OWN output format, re-uploaded as input) -- one column
+// literally named "|" holding a bullet list of assigned devices, e.g.
+// "• Shelly Mini Dimmer Gen4 - 1 pc" (one line per device, multiple lines
+// for a multi-device pack), instead of one Yes/No answer column per device.
+// Detect that shape and parse it separately from the per-column format.
+function logiFindPipeColumn(keys) {
+  return keys.find(k => (k || '').trim() === '|') || null;
+}
+function logiParsePipeDevices(val) {
+  const s = String(val ?? '');
+  if (!s.trim()) return [];
+  return s.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    let l = line.replace(/^[•\-*]\s*/, '');
+    let color = '';
+    const colorMatch = l.match(/color:\s*(.+)$/i);
+    if (colorMatch) { color = colorMatch[1].trim(); l = l.slice(0, colorMatch.index).trim(); }
+    l = l.replace(/\s*-\s*\d+\s*pcs?\.?\s*$/i, '').trim();
+    return { device: l, color };
+  }).filter(d => d.device);
+}
 // Prefer the real "Your X:" question column; only fall back to a bare
 // "X"-named column (e.g. a plain "Email" header) if no "Your X" exists --
 // some exports are simpler and don't use the "Your..." phrasing at all.
@@ -1825,47 +1850,63 @@ async function handleLogiFile(file) {
 
 function logiConvert(rows) {
   const keys = Object.keys(rows[0] || {});
-  const devices  = logiDetectDevices(keys);
+  const pipeKey = logiFindPipeColumn(keys);
+  const devices  = pipeKey ? [] : logiDetectDevices(keys);
   // Prefer "Your X:" (the real question) over a bare same-named column
-  // (Microsoft Forms' own blank/anonymous account field).
+  // (Microsoft Forms' own blank/anonymous account field). Also matches the
+  // plain "Name"/"E-mail" headers of an already-converted Logistics file.
   const nameKey     = logiFindField(keys, /your\s+full\s*name/i, /^full\s*name$/i, /^name$/i);
-  const emailKey    = logiFindField(keys, /your\s+email/i, /^email$/i);
+  const emailKey    = logiFindField(keys, /your\s+email/i, /^e-?mail$/i);
   const nickKey     = logiFindField(keys, /your\s+nickname/i, /nickname/i, /shelly.?forum/i);
   const phoneKey    = logiFindField(keys, /your\s+phone/i, /^phone/i);
   const countryKey  = logiFindField(keys, /your\s+country/i, /^country/i);
   const addressKey  = logiFindField(keys, /your\s+address/i, /^address/i);
   const cityKey     = logiFindField(keys, /city/i);
+  const trackingKey = logiFindField(keys, /tracking/i);
 
   const totals = {}; // deviceName -> { count, answers:{}, colors:{} }
   const out = [];    // one row per respondent with any included device
   const shipmentRows = []; // flat rows for backend persistence
 
+  const addDevice = (row, devName, color, ansStr) => {
+    if (!totals[devName]) totals[devName] = { count: 0, answers: {}, colors: {} };
+    totals[devName].count++;
+    totals[devName].answers[ansStr] = (totals[devName].answers[ansStr] || 0) + 1;
+    if (color) totals[devName].colors[color] = (totals[devName].colors[color] || 0) + 1;
+    shipmentRows.push({
+      nickname: nickKey ? row[nickKey] : '', email: emailKey ? row[emailKey] : '',
+      full_name: nameKey ? row[nameKey] : '', country: countryKey ? row[countryKey] : '',
+      city: cityKey ? row[cityKey] : '', address: addressKey ? row[addressKey] : '',
+      phone: phoneKey ? row[phoneKey] : '', device: devName, color,
+    });
+  };
+
   rows.forEach(row => {
     const lines = [];
-    devices.forEach(({ key, colorCol }) => {
-      const val = row[key];
-      if (!logiShouldInclude(val)) return;
-      const devName = (key || '').trim();
-      const color = colorCol ? String(row[colorCol] ?? '').trim() : '';
-      lines.push(`• ${devName} - 1 pc${color ? `  Color: ${color}` : ''}`);
-      if (!totals[devName]) totals[devName] = { count: 0, answers: {}, colors: {} };
-      totals[devName].count++;
-      const ansStr = String(val).trim();
-      totals[devName].answers[ansStr] = (totals[devName].answers[ansStr] || 0) + 1;
-      if (color) totals[devName].colors[color] = (totals[devName].colors[color] || 0) + 1;
-      shipmentRows.push({
-        nickname: nickKey ? row[nickKey] : '', email: emailKey ? row[emailKey] : '',
-        full_name: nameKey ? row[nameKey] : '', country: countryKey ? row[countryKey] : '',
-        city: cityKey ? row[cityKey] : '', address: addressKey ? row[addressKey] : '',
-        phone: phoneKey ? row[phoneKey] : '', device: devName, color,
+    if (pipeKey) {
+      // Already-converted shape: one "|" column with a bullet list of
+      // devices, e.g. "• Shelly Mini Dimmer Gen4 - 1 pc" (one per line).
+      logiParsePipeDevices(row[pipeKey]).forEach(({ device: devName, color }) => {
+        lines.push(`• ${devName} - 1 pc${color ? `  Color: ${color}` : ''}`);
+        addDevice(row, devName, color, devName);
       });
-    });
+    } else {
+      devices.forEach(({ key, colorCol }) => {
+        const val = row[key];
+        if (!logiShouldInclude(val)) return;
+        const devName = (key || '').trim();
+        const color = colorCol ? String(row[colorCol] ?? '').trim() : '';
+        lines.push(`• ${devName} - 1 pc${color ? `  Color: ${color}` : ''}`);
+        addDevice(row, devName, color, String(val).trim());
+      });
+    }
     if (!lines.length) return;
     out.push({
       Name: nameKey ? row[nameKey] : '', 'Forum Nickname': nickKey ? row[nickKey] : '',
       Country: countryKey ? row[countryKey] : '', 'City, Postal Code': cityKey ? row[cityKey] : '',
       Address: addressKey ? row[addressKey] : '', 'Phone Number': phoneKey ? row[phoneKey] : '',
-      '|': lines.join('\n'), 'Tracking number': '', 'E-mail': emailKey ? row[emailKey] : '',
+      '|': lines.join('\n'), 'Tracking number': trackingKey ? (row[trackingKey] || '') : '',
+      'E-mail': emailKey ? row[emailKey] : '',
       'SAP BP ID': '', 'SAP SO': '', 'SAP OBD': '', 'SAP INV': '',
     });
   });
@@ -1994,38 +2035,97 @@ async function loadParticipation() {
 }
 
 // ── Statistics dashboard ─────────────────────────────────────────────────────────
+function statsFmtDate(iso) {
+  if (!iso) return '—';
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return '—';
+  return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function statsTopicsCell(topics) {
+  if (!topics || !topics.length) return '—';
+  const n = topics.length;
+  const titleAttr = topics.map(t => `${t.topic_title || 'Untitled'} (${t.status === 'active' ? 'active' : 'no post'})`).join('\n');
+  return `<span title="${titleAttr.replace(/"/g, '&quot;')}" style="cursor:help;border-bottom:1px dotted var(--muted)">${n} topic${n !== 1 ? 's' : ''}</span>`;
+}
+
+function statsPeopleTable(people, emptyMsg) {
+  if (!people.length) return `<div class="fb-empty">${emptyMsg}</div>`;
+  const th = (label, extra) => `<th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)${extra||''}">${label}</th>`;
+  const rowsHtml = people.map(p => `<tr>
+    <td style="padding:9px 12px;font-size:13px;font-weight:600">${p.full_name || '—'}</td>
+    <td style="padding:9px 12px;font-size:12px;color:var(--blue)">${p.nickname || '—'}</td>
+    <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${p.email || '—'}</td>
+    <td style="padding:9px 12px;font-size:12px;text-align:center">${p.scans_appeared}</td>
+    <td style="padding:9px 12px;font-size:12px;text-align:center">${statsTopicsCell(p.topics)}</td>
+    <td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;color:${p.participation_rate>=70?'var(--green)':p.participation_rate>=40?'var(--amber)':'var(--red)'}">${p.participation_rate}%</td>
+    <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${statsFmtDate(p.last_active_at)}</td>
+  </tr>`).join('');
+  return `<table><thead><tr>${th('Name')}${th('Nickname')}${th('Email')}${th('Scans', ';text-align:center')}${th('Topics', ';text-align:center')}${th('Rate', ';text-align:center')}${th('Last active')}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+}
+
+function statsRenderChart(topicStats) {
+  const el = document.getElementById('stats-chart');
+  if (!topicStats || !topicStats.length) { el.innerHTML = `<div class="fb-empty">No scans saved yet.</div>`; return; }
+  const barH = 26, gap = 10, labelW = 220, chartW = 420, padTop = 6;
+  const rows = topicStats.map((s, i) => {
+    const y = padTop + i * (barH + gap);
+    const pct = Math.max(0, Math.min(100, s.participation_rate || 0));
+    const w = Math.round((pct / 100) * chartW);
+    const color = pct >= 70 ? 'var(--green)' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
+    const label = (s.topic_title || 'Untitled').length > 30 ? (s.topic_title || '').slice(0, 28) + '…' : (s.topic_title || 'Untitled');
+    return `
+      <text x="0" y="${y + barH/2 + 4}" font-size="11" fill="var(--muted)">${label}</text>
+      <rect x="${labelW}" y="${y}" width="${chartW}" height="${barH}" rx="4" fill="var(--surf2)"></rect>
+      <rect x="${labelW}" y="${y}" width="${w}" height="${barH}" rx="4" fill="${color}"></rect>
+      <text x="${labelW + chartW + 10}" y="${y + barH/2 + 4}" font-size="11" font-weight="700" fill="var(--fg)">${pct}% <tspan fill="var(--muted)" font-weight="400">(${s.active_count}/${s.total_applicants})</tspan></text>
+    `;
+  }).join('');
+  const totalH = padTop + topicStats.length * (barH + gap);
+  el.innerHTML = `<svg viewBox="0 0 ${labelW + chartW + 130} ${totalH}" style="width:100%;height:auto;font-family:inherit">${rows}</svg>`;
+}
+
 async function loadStats() {
   const params = new URLSearchParams();
   const nickname = document.getElementById('stats-nickname').value.trim();
   const email = document.getElementById('stats-email').value.trim();
   const name = document.getElementById('stats-name').value.trim();
   const since = document.getElementById('stats-since').value;
+  const device = document.getElementById('stats-device').value;
+  const inactiveMonths = document.getElementById('stats-inactive-months').value.trim();
   if (nickname) params.set('nickname', nickname);
   if (email) params.set('email', email);
   if (name) params.set('name', name);
   if (since) params.set('since', since);
+  if (device) params.set('device', device);
+  if (inactiveMonths) params.set('inactive_months', inactiveMonths);
 
   const summaryEl = document.getElementById('stats-summary');
   const mostEl = document.getElementById('stats-most-active');
   const leastEl = document.getElementById('stats-least-active');
   const neverEl = document.getElementById('stats-never-active');
+  const inactiveEl = document.getElementById('stats-recently-inactive');
 
   try {
     const r = await fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`, { headers: teamCodeHeaders() });
     const d = await r.json();
     if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
 
-    summaryEl.innerHTML = `<div class="summary-box"><strong>${d.scans.length}</strong> scans saved &nbsp;·&nbsp; <strong>${d.total_people}</strong> unique people tracked &nbsp;·&nbsp; <strong style="color:var(--red)">${d.never_active.length}</strong> never active</div>`;
-
-    const peopleTable = (people, emptyMsg) => {
-      if (!people.length) return `<div class="fb-empty">${emptyMsg}</div>`;
-      const rowsHtml = people.map(p => `<tr><td style="padding:9px 12px;font-size:13px;font-weight:600">${p.full_name || '—'}</td><td style="padding:9px 12px;font-size:12px;color:var(--blue)">${p.nickname || '—'}</td><td style="padding:9px 12px;font-size:12px;color:var(--muted)">${p.email || '—'}</td><td style="padding:9px 12px;font-size:12px;text-align:center">${p.scans_appeared}</td><td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;color:${p.participation_rate>=70?'var(--green)':p.participation_rate>=40?'var(--amber)':'var(--red)'}">${p.participation_rate}%</td></tr>`).join('');
-      return `<table><thead><tr><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Name</th><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Nickname</th><th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)">Email</th><th style="background:var(--surf2);padding:9px 12px;font-size:11px;text-transform:uppercase;color:var(--muted)">Scans</th><th style="background:var(--surf2);padding:9px 12px;font-size:11px;text-transform:uppercase;color:var(--muted)">Rate</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    const fillSelect = (id, values, current) => {
+      const el = document.getElementById(id);
+      const keep = current || el.value;
+      el.innerHTML = `<option value="">All topics</option>` + values.map(v => `<option value="${v}"${v===keep?' selected':''}>${v}</option>`).join('');
     };
+    fillSelect('stats-device', d.devices || [], device);
 
-    mostEl.innerHTML  = peopleTable(d.most_active, 'No scans saved yet.');
-    leastEl.innerHTML = peopleTable(d.least_active, 'No scans saved yet.');
-    neverEl.innerHTML = peopleTable(d.never_active, 'Everyone tracked has participated at least once.');
+    summaryEl.innerHTML = `<div class="summary-box"><strong>${d.scans.length}</strong> scans saved &nbsp;·&nbsp; <strong>${d.total_people}</strong> unique people tracked &nbsp;·&nbsp; <strong style="color:var(--amber)">${d.recently_inactive.length}</strong> recently inactive &nbsp;·&nbsp; <strong style="color:var(--red)">${d.never_active.length}</strong> never active</div>`;
+
+    statsRenderChart(d.topic_stats);
+
+    inactiveEl.innerHTML = statsPeopleTable(d.recently_inactive, `Nobody has gone quiet in the last ${d.inactive_months} month${d.inactive_months !== 1 ? 's' : ''} — everyone active before is still showing up.`);
+    mostEl.innerHTML  = statsPeopleTable(d.most_active, 'No scans saved yet.');
+    leastEl.innerHTML = statsPeopleTable(d.least_active, 'No scans saved yet.');
+    neverEl.innerHTML = statsPeopleTable(d.never_active, 'Everyone tracked has participated at least once.');
   } catch (e) {
     summaryEl.innerHTML = `<div class="fb-empty">${e.message}</div>`;
   }
