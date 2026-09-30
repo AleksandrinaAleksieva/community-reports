@@ -855,6 +855,21 @@ function enableNav(id) {
 
 // ── Credentials ───────────────────────────────────────────────────────────────
 const CRED_IDS = ['nodebb_key','atl_email','atl_token','jira_url','jira_project','gemini_key','team_access_code'];
+
+// Endpoints that read/write applicant or shipment data (names, emails,
+// addresses) require the Team Access Code -- sent as a header so it never
+// shows up in a shared/bookmarked URL. Also checks the ?code= query param,
+// for links opened cold from the daily email (which embeds the code there).
+function teamCodeHeaders(extra) {
+  const fromUrl = new URLSearchParams(window.location.search).get('code');
+  const code = fromUrl || document.getElementById('team_access_code')?.value.trim() || '';
+  return { ...(extra || {}), 'X-Team-Code': code };
+}
+function teamCodeErrorMsg(status) {
+  return status === 403
+    ? 'Team access code missing or incorrect — set it in Settings.'
+    : `HTTP ${status}`;
+}
 function saveCreds() {
   const c = {};
   CRED_IDS.forEach(id => { const v = document.getElementById(id)?.value.trim(); if (v) c[id] = v; });
@@ -1548,7 +1563,7 @@ function renderApplicants(rows, forumUsernames) {
     });
     fetch(`${PROXY_BASE}/proxy/external-qa/scan`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: teamCodeHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({
         participants,
         topic_id: meta.topicId || null,
@@ -1677,8 +1692,8 @@ async function runAnalysis() {
 // from there instead of re-running the AI analysis in the browser.
 async function loadFromEmailLink(topicId) {
   try {
-    const r = await fetch(`${PROXY_BASE}/proxy/qa-findings?topic_id=${encodeURIComponent(topicId)}`);
-    if (!r.ok) throw new Error(`Server returned ${r.status}`);
+    const r = await fetch(`${PROXY_BASE}/proxy/qa-findings?topic_id=${encodeURIComponent(topicId)}`, { headers: teamCodeHeaders() });
+    if (!r.ok) throw new Error(teamCodeErrorMsg(r.status));
     const data = await r.json();
     if (!data.count) {
       toast(`No saved findings yet for topic #${topicId}.`);
@@ -1885,11 +1900,11 @@ async function saveLogisticsToHistory() {
   statusEl.textContent = '💾 Saving to Participation history...';
   try {
     const r = await fetch(`${PROXY_BASE}/proxy/device-shipments/upload`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: teamCodeHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ rows, package_label: packageLabel, source_file: window._logiFileName || null })
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
     statusEl.textContent = `✅ Saved: ${d.inserted} new, ${d.updated} updated`;
   } catch (e) {
     statusEl.textContent = `❌ ${e.message}`;
@@ -1910,9 +1925,9 @@ async function loadParticipation() {
   if (color) params.set('color', color);
   if (pkg) params.set('package_label', pkg);
   try {
-    const r = await fetch(`${PROXY_BASE}/proxy/device-shipments?${params.toString()}`);
+    const r = await fetch(`${PROXY_BASE}/proxy/device-shipments?${params.toString()}`, { headers: teamCodeHeaders() });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
     statusEl.textContent = `${d.count} shipment${d.count !== 1 ? 's' : ''}`;
 
     const fillSelect = (id, values, current) => {
@@ -1953,9 +1968,9 @@ async function loadStats() {
   const neverEl = document.getElementById('stats-never-active');
 
   try {
-    const r = await fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`);
+    const r = await fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`, { headers: teamCodeHeaders() });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
 
     summaryEl.innerHTML = `<div class="summary-box"><strong>${d.scans.length}</strong> scans saved &nbsp;·&nbsp; <strong>${d.total_people}</strong> unique people tracked &nbsp;·&nbsp; <strong style="color:var(--red)">${d.never_active.length}</strong> never active</div>`;
 
