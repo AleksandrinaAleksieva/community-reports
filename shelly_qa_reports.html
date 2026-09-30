@@ -601,12 +601,23 @@ th.sortable:hover{color:var(--text)}
           <div class="field"><label>Email</label><input type="text" id="stats-email" oninput="loadStats()"></div>
           <div class="field"><label>Name</label><input type="text" id="stats-name" oninput="loadStats()"></div>
           <div class="field"><label>Since</label><input type="date" id="stats-since" onchange="loadStats()"></div>
+          <div class="field"><label>Device / QA pack topic</label><select id="stats-device" onchange="loadStats()"><option value="">All topics</option></select></div>
+          <div class="field"><label>Flag inactive after (months)</label><input type="number" id="stats-inactive-months" value="2" min="1" max="24" style="width:80px" onchange="loadStats()"></div>
           <button class="btn btn-primary" onclick="loadStats()" style="margin-top:20px">Refresh</button>
         </div>
+        <p class="hint">Filtering by a device/topic shows each person's participation for that QA pack specifically, instead of their lifetime rate.</p>
       </div>
     </div>
     <div id="stats-summary" style="margin:14px 0"></div>
     <div class="card">
+      <div class="card-header"><span class="card-title">Active participants per QA pack</span></div>
+      <div class="card-body"><div id="stats-chart"><div class="fb-empty">No scans saved yet.</div></div></div>
+    </div>
+    <div class="card" style="margin-top:14px;border-color:var(--amber)">
+      <div class="card-header"><span class="card-title">⚠️ Recently inactive — used to participate, gone quiet</span></div>
+      <div class="card-body"><div class="table-wrap" id="stats-recently-inactive"><div class="fb-empty">Nothing to flag yet.</div></div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
       <div class="card-header"><span class="card-title">Most active</span></div>
       <div class="card-body"><div class="table-wrap" id="stats-most-active"><div class="fb-empty">No scans saved yet.</div></div></div>
     </div>
