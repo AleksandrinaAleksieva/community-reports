@@ -421,8 +421,13 @@ th.sortable:hover{color:var(--text)}
         <div class="card-header"><span class="card-title">Topic</span></div>
         <div class="card-body">
           <div class="field">
-            <label>Forum Topic URL</label>
+            <label>Forum Topic URL <span style="font-weight:400;color:var(--muted)">(the Feedback topic)</span></label>
             <input type="url" id="topic_url" placeholder="https://community.shelly.cloud/topic/14885-...">
+          </div>
+          <div class="field">
+            <label>Ordering Topic URL <span style="font-weight:400;color:var(--muted)">(optional — auto-detected if left blank)</span></label>
+            <input type="url" id="ordering_topic_url" placeholder="https://community.shelly.cloud/topic/14880-...">
+            <p class="hint">People often comment in the Ordering-process thread too, not just Feedback — that thread is checked as well so they aren't wrongly marked as never having participated. Leave blank to auto-detect the matching Ordering topic for this device/month, or paste it directly if auto-detection picks the wrong one.</p>
           </div>
           <div class="row3">
             <div class="field">
@@ -594,6 +599,15 @@ th.sortable:hover{color:var(--text)}
   </div>
 
   <div class="rpanel" id="panel-stats">
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <span class="card-title">🔄 Participation scan</span>
+        <button class="btn btn-sm" onclick="autoScanParticipation()">Re-scan now</button>
+      </div>
+      <div class="card-body">
+        <p class="hint" style="margin-top:0" id="stats-scan-log">Checking Feedback + Ordering topics against everyone on record for a shipped device...</p>
+      </div>
+    </div>
     <div class="card">
       <div class="card-header"><span class="card-title">Filters</span></div>
       <div class="card-body">
@@ -847,7 +861,14 @@ function goRtab(name, btn) {
   if (btn) btn.classList.add('active');
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
-  if (name === 'stats') loadStats();
+  if (name === 'stats') {
+    loadStats();
+    // Run the automatic Feedback+Ordering participation scan once per page
+    // load -- loadStats() above shows whatever's already persisted right
+    // away, then this refreshes it in the background once the scan (which
+    // has to walk several forum topics) finishes.
+    if (!window._statsAutoScanDone) { window._statsAutoScanDone = true; autoScanParticipation(); }
+  }
   if (name === 'dispatched') loadParticipation();
 }
 function enableNav(id) {
@@ -1527,6 +1548,17 @@ async function handleExcelFile(file) {
   }
 }
 
+function matchesNickname(nickLower, set) {
+  if (!nickLower) return false;
+  if (set.has(nickLower)) return true;
+  if (nickLower.length <= 2) return false;
+  const stripped = nickLower.replace(/[\s._-]/g,'');
+  for (const c of set) {
+    if (c === nickLower || c.replace(/[\s._-]/g,'') === stripped) return true;
+  }
+  return false;
+}
+
 function renderApplicants(rows, forumUsernames) {
   const container=document.getElementById('applicants-table');
   const summary=document.getElementById('applicants-summary');
@@ -1541,31 +1573,43 @@ function renderApplicants(rows, forumUsernames) {
   const nicknameKey=logiFindField(allKeys, /your\s+nickname/i, /nickname/i, /shelly.?forum/i);
   const skipKeys=new Set(['ID','Start time','Completion time','Last modified time','Name','Email','_sheet_id']);
   const contributors=new Set((forumUsernames||[]).map(n=>n.toLowerCase().trim()));
+  // Tracked separately from the combined `contributors` set so each row can
+  // show WHICH topic the match came from (Feedback / Ordering / both) --
+  // makes it possible to verify at a glance instead of trusting a black box.
+  const feedbackSet=new Set((window._feedbackForumUsernames||[]).map(n=>n.toLowerCase().trim()));
+  const orderingSet=new Set((window._orderingForumUsernames||[]).map(n=>n.toLowerCase().trim()));
   let active=0,inactive=0;
   const rows_html=rows.map(row=>{
     const name=row[nameKey]||'—', email=emailKey?row[emailKey]:null, nickname=nicknameKey?String(row[nicknameKey]??'').trim():'';
     const nickLower=nickname.toLowerCase();
-    const isActive=contributors.size===0?null:contributors.has(nickLower)||(nickLower.length>2&&[...contributors].some(c=>c===nickLower||c.replace(/[\s._-]/g,'')===nickLower.replace(/[\s._-]/g,'')));
+    const inFeedback=matchesNickname(nickLower, feedbackSet);
+    const inOrdering=matchesNickname(nickLower, orderingSet);
+    const isActive=contributors.size===0?null:(inFeedback||inOrdering);
     if (isActive===true) active++; else if (isActive===false) inactive++;
     let activityCell;
     if (contributors.size===0) activityCell=`<td style="padding:10px 14px;border:1px solid var(--border)"><span style="font-size:12px;color:var(--muted);font-style:italic">Run analysis first</span></td>`;
     else if (isActive) activityCell=`<td style="padding:10px 14px;border:1px solid var(--border)"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="font-size:12px;font-weight:700;color:var(--green)">Active</span></div></td>`;
     else activityCell=`<td style="padding:10px 14px;border:1px solid var(--border)"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></div><span style="font-size:12px;font-weight:700;color:var(--red)">No posts</span></div></td>`;
-    return `<tr><td style="padding:10px 14px;border:1px solid var(--border);font-size:13px;font-weight:600">${name}</td>${nicknameKey?`<td style="padding:10px 14px;border:1px solid var(--border);font-size:12px;color:var(--blue);font-weight:600">${nickname||'—'}</td>`:''} ${email?`<td style="padding:10px 14px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${email}</td>`:''}${activityCell}</tr>`;
+    const sourceLabel = contributors.size===0 ? '' : (inFeedback&&inOrdering ? 'Feedback + Ordering' : inFeedback ? 'Feedback' : inOrdering ? 'Ordering' : '—');
+    const sourceCell = contributors.size===0 ? '' : `<td style="padding:10px 14px;border:1px solid var(--border);font-size:11px;color:var(--muted)">${sourceLabel}</td>`;
+    return `<tr><td style="padding:10px 14px;border:1px solid var(--border);font-size:13px;font-weight:600">${name}</td>${nicknameKey?`<td style="padding:10px 14px;border:1px solid var(--border);font-size:12px;color:var(--blue);font-weight:600">${nickname||'—'}</td>`:''} ${email?`<td style="padding:10px 14px;border:1px solid var(--border);font-size:12px;color:var(--muted)">${email}</td>`:''}${activityCell}${sourceCell}</tr>`;
   }).join('');
   const mth=t=>`<th style="background:var(--surf2);color:var(--muted);padding:9px 14px;border:1px solid var(--border);font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:.5px">${t}</th>`;
-  container.innerHTML=`<div class="table-wrap"><table><thead><tr>${mth('Full Name')}${nicknameKey?mth('Forum Nickname'):''}${emailKey?mth('Email'):''}${mth('Forum Activity')}</tr></thead><tbody>${rows_html}</tbody></table></div>`;
+  container.innerHTML=`<div class="table-wrap"><table><thead><tr>${mth('Full Name')}${nicknameKey?mth('Forum Nickname'):''}${emailKey?mth('Email'):''}${mth('Forum Activity')}${contributors.size>0?mth('Matched via'):''}</tr></thead><tbody>${rows_html}</tbody></table></div>`;
   if (contributors.size>0) {
     const total=rows.length, ratio=Math.round((active/total)*100);
     const color=ratio>=70?'var(--green)':ratio>=40?'var(--amber)':'var(--red)';
     summary.style.display='block';
-    summary.innerHTML=`<div class="summary-box"><strong>${total}</strong> applicants &nbsp;·&nbsp; <span style="color:var(--green);font-weight:700">${active} active</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:700">${inactive} no posts</span> &nbsp;·&nbsp; Participation: <strong style="color:${color}">${ratio}%</strong></div>`;
+    const orderingNote = window._orderingForumUsernames && window._orderingForumUsernames.length
+      ? ` &nbsp;·&nbsp; checked against ${window._feedbackForumUsernames.length} Feedback + ${window._orderingForumUsernames.length} Ordering commenters`
+      : ` &nbsp;·&nbsp; checked against ${window._feedbackForumUsernames ? window._feedbackForumUsernames.length : contributors.size} Feedback commenters (no Ordering topic found)`;
+    summary.innerHTML=`<div class="summary-box"><strong>${total}</strong> applicants &nbsp;·&nbsp; <span style="color:var(--green);font-weight:700">${active} active</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:700">${inactive} no posts</span> &nbsp;·&nbsp; Participation: <strong style="color:${color}">${ratio}%</strong>${orderingNote}</div>`;
 
     // Persist this scan so the Statistics tab can show trends over time.
     const participants = rows.map(row => {
       const nickname = nicknameKey ? String(row[nicknameKey]??'').trim() : '';
       const nickLower = nickname.toLowerCase();
-      const isActive = contributors.has(nickLower) || (nickLower.length>2 && [...contributors].some(c=>c===nickLower||c.replace(/[\s._-]/g,'')===nickLower.replace(/[\s._-]/g,'')));
+      const isActive = matchesNickname(nickLower, feedbackSet) || matchesNickname(nickLower, orderingSet);
       return {
         nickname,
         email: emailKey ? String(row[emailKey]??'') : '',
@@ -1673,6 +1717,62 @@ function filterMembers() {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+// ── Ordering-topic lookup (participation-matching debug) ────────────────────────
+// People often comment in a device's Ordering-process thread as well as its
+// Feedback thread -- expressing interest, confirming an address, etc. Only
+// the Feedback thread used to be scanned for "who posted", which is the
+// most likely reason some real participants were showing up as "No posts".
+function forumUsersFromPosts(posts) {
+  return [...new Set(posts.map(p => p.author?.name || p.author?.displayName || '').filter(Boolean))];
+}
+
+async function fetchAllQaTopics(apiKey) {
+  // Same source Home uses, but with all=1 so Ordering-process topics
+  // (which /proxy/qa-active-topics normally filters out entirely) come
+  // back too, each tagged with a `kind`.
+  const r = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?months=6&all=1`, { headers: { 'X-IPS-Key': apiKey } });
+  if (!r.ok) return [];
+  const d = await r.json();
+  const flat = [];
+  (d.months || []).forEach(m => (m.results || []).forEach(t => flat.push(t)));
+  return flat;
+}
+
+// Shared word-matching helpers for device <-> topic-title matching. Plain
+// substring checks are unreliable here: a short device name ("Shelly 2
+// Gen4") can lose a match to a longer one that happens to share generic
+// words ("Gen4"), and single-character/numeric words falsely match inside
+// unrelated numbers (a "2" matching inside "2026"). Word-boundary regexes
+// plus requiring every word to be present (not just a partial overlap)
+// avoids both.
+function deviceWordsOf(name) {
+  return (name || '').toLowerCase().split(/\s+/).filter(Boolean);
+}
+function wordPresent(title, word) {
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${esc}\\b`, 'i').test(title || '');
+}
+function allWordsPresent(title, words) {
+  return words.length > 0 && words.every(w => wordPresent(title, w));
+}
+
+function findSiblingOrderingTopic(topics, deviceName) {
+  const devWords = deviceWordsOf(deviceName);
+  if (!devWords.length) return null;
+  // Prefer a topic whose title contains every word of the device name; if
+  // nothing matches fully, fall back to whichever ordering topic matches
+  // the most words (a close-but-imperfect title still resolves that way).
+  let bestFull = null, bestPartial = null, bestScore = 0;
+  topics.forEach(t => {
+    if (t.kind !== 'ordering') return;
+    const title = t.title || '';
+    if (!bestFull && allWordsPresent(title, devWords)) { bestFull = t; return; }
+    const score = devWords.reduce((n, w) => n + (wordPresent(title, w) ? 1 : 0), 0);
+    if (score > bestScore) { bestScore = score; bestPartial = t; }
+  });
+  return bestFull || bestPartial;
+}
+
 async function runAnalysis() {
   const btn = document.querySelector('.btn-run');
   const statusEl=document.getElementById('status');
@@ -1682,6 +1782,7 @@ async function runAnalysis() {
   if (btn) btn.disabled=true;
   analysis=null;
   const topicUrl=document.getElementById('topic_url').value.trim();
+  const orderingUrlInput=document.getElementById('ordering_topic_url').value.trim();
   const nodebbKey=document.getElementById('nodebb_key').value.trim();
   const fwVersion=document.getElementById('fw_version').value.trim();
   if (!topicUrl) { logLine('Please enter a topic URL.','lerr'); if(btn)btn.disabled=false; return; }
@@ -1692,14 +1793,62 @@ async function runAnalysis() {
     const packageLabel=document.getElementById('package_label').value.trim()||new Date().toLocaleString('en-US',{month:'long',year:'numeric'});
     const devicesSent=parseInt(document.getElementById('devices_sent').value.trim())||null;
     meta={deviceName,packageLabel,fwVersion,topicUrl,topicId,postCount:0,devicesSent};
-    setProgress(2,'Fetching posts...');
-    logLine(`Topic #${topicId}  |  ${deviceName}  |  ${packageLabel}${fwVersion?'  |  FW '+fwVersion:''}`, 'linf');
+    setProgress(2,'Fetching feedback posts...');
+    logLine(`Feedback topic #${topicId}  |  ${deviceName}  |  ${packageLabel}${fwVersion?'  |  FW '+fwVersion:''}`, 'linf');
     const posts=await fetchPosts(topicId,nodebbKey);
     meta.postCount=posts.length;
-    const uniqueUsers=new Set(posts.map(p=>p.author?.name||p.author?.displayName||'').filter(Boolean));
-    meta.uniqueContributors=uniqueUsers.size;
-    window._forumUsernames=[...uniqueUsers];
-    logLine(`Fetched ${posts.length} feedback posts`,'linf');
+    const feedbackUsers = forumUsersFromPosts(posts);
+    meta.uniqueContributors=feedbackUsers.length;
+    logLine(`Fetched ${posts.length} feedback posts — ${feedbackUsers.length} unique commenters`,'linf');
+    logLine(`Feedback commenters: ${feedbackUsers.length ? feedbackUsers.slice().sort().join(', ') : '(none)'}`,'linf');
+
+    // Also check the matching Ordering-process topic (manual URL takes
+    // priority; otherwise auto-detect by matching the device name against
+    // every "...Ordering..." topic found in the last few months).
+    let orderingUsers = [], orderingTopicMeta = null;
+    setProgress(3,'Checking the Ordering topic...');
+    try {
+      let orderingTopic = null;
+      if (orderingUrlInput) {
+        const parsed = parseUrl(orderingUrlInput);
+        orderingTopic = { id: parsed.id, title: parsed.name || `Topic #${parsed.id}` };
+        logLine(`Using manually-provided Ordering topic #${parsed.id}`,'linf');
+      } else {
+        const allTopics = await fetchAllQaTopics(nodebbKey);
+        const match = findSiblingOrderingTopic(allTopics, deviceName);
+        if (match) {
+          orderingTopic = { id: parseUrl(match.url).id, title: match.title };
+          logLine(`Auto-detected Ordering topic #${orderingTopic.id}: "${orderingTopic.title}"`,'linf');
+        } else {
+          logLine('No matching Ordering topic found automatically — paste one above if you know it exists.','linf');
+        }
+      }
+      if (orderingTopic) {
+        const orderingPosts = await fetchPosts(orderingTopic.id, nodebbKey);
+        orderingUsers = forumUsersFromPosts(orderingPosts);
+        orderingTopicMeta = { ...orderingTopic, postCount: orderingPosts.length };
+        logLine(`Fetched ${orderingPosts.length} Ordering-topic posts — ${orderingUsers.length} unique commenters`,'linf');
+        logLine(`Ordering commenters: ${orderingUsers.length ? orderingUsers.slice().sort().join(', ') : '(none)'}`,'linf');
+      }
+    } catch (e) {
+      logLine('Could not check the Ordering topic: '+e.message,'lerr');
+    }
+
+    // Anyone who commented in EITHER topic counts as having participated.
+    window._feedbackForumUsernames = feedbackUsers;
+    window._orderingForumUsernames = orderingUsers;
+    window._forumUsernames = [...new Set([...feedbackUsers, ...orderingUsers])];
+    meta.orderingTopic = orderingTopicMeta;
+
+    // Full debug dump, topic by topic, so participation can be checked
+    // against what's actually on the forum (open the browser console).
+    console.groupCollapsed(`Participation debug — ${deviceName} (${packageLabel})`);
+    console.log(`Feedback topic #${topicId}, ${posts.length} posts:`, feedbackUsers.slice().sort());
+    if (orderingTopicMeta) console.log(`Ordering topic #${orderingTopicMeta.id} "${orderingTopicMeta.title}", ${orderingTopicMeta.postCount} posts:`, orderingUsers.slice().sort());
+    else console.log('Ordering topic: none found/provided');
+    console.log('Combined (used for participation matching):', window._forumUsernames.slice().sort());
+    console.groupEnd();
+
     if (!posts.length) { logLine('No feedback posts found.','lerr'); if(btn)btn.disabled=false; return; }
     setProgress(5,'Sending to analysis server...');
     const result=await analyze(posts,deviceName,fwVersion);
@@ -2131,6 +2280,119 @@ function statsRenderChart(topicStats) {
   }).join('');
   const totalH = padTop + topicStats.length * (barH + gap);
   el.innerHTML = `<svg viewBox="0 0 ${labelW + chartW + 130} ${totalH}" style="width:100%;height:auto;font-family:inherit">${rows}</svg>`;
+}
+
+// ── Automatic participation scan ─────────────────────────────────────────────
+// Runs when the Statistics tab opens (and on demand via "Re-scan now"):
+// finds every QA-pack's Feedback + Ordering topics, cross-references them
+// against everyone already on record as having received that device that
+// month (device_shipments, from Logistics/External QAs uploads), and
+// persists a fresh scan per pack -- so participation numbers stay current
+// without anyone having to manually paste topic URLs and re-upload a file.
+function bestDeviceMatch(topicTitle, devices) {
+  // Requires every word of a candidate device name to appear in the title
+  // (word-boundary matched, so "2" doesn't falsely match inside "2026"),
+  // then picks whichever matching candidate has the MOST words -- i.e. the
+  // most specific name -- so "Shelly 2 Gen4" isn't shadowed by "Shelly
+  // Mini Dimmer Gen4" just because both happen to contain "Gen4".
+  const title = topicTitle || '';
+  let best = null, bestWordCount = 0;
+  devices.forEach(dev => {
+    const words = deviceWordsOf(dev);
+    if (allWordsPresent(title, words) && words.length > bestWordCount) {
+      bestWordCount = words.length;
+      best = dev;
+    }
+  });
+  return best;
+}
+
+function packageMatchesMonth(packageLabel, monthLabel) {
+  const a = (packageLabel || '').toLowerCase().trim();
+  const b = (monthLabel || '').toLowerCase().trim();
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+async function autoScanParticipation() {
+  const apiKey = document.getElementById('nodebb_key').value.trim();
+  const logEl = document.getElementById('stats-scan-log');
+  const setLog = msg => { if (logEl) logEl.textContent = msg; };
+  if (!apiKey) { setLog('Add your Community API key in Settings to enable the automatic participation scan.'); return; }
+
+  setLog('Loading shipped devices...');
+  try {
+    const shipR = await fetch(`${PROXY_BASE}/proxy/device-shipments`, { headers: teamCodeHeaders() });
+    const shipD = await shipR.json();
+    if (!shipR.ok) throw new Error(shipR.status === 403 ? teamCodeErrorMsg(403) : (shipD.error || `HTTP ${shipR.status}`));
+    const shipments = shipD.rows || [];
+    if (!shipments.length) { setLog('No shipment records yet — upload a Logistics or External QAs file first, then re-scan.'); return; }
+    const distinctDevices = [...new Set(shipments.map(s => s.device).filter(Boolean))];
+
+    setLog('Looking up Feedback + Ordering topics...');
+    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?months=3&all=1`, { headers: { 'X-IPS-Key': apiKey } });
+    if (!tr.ok) throw new Error(`Could not load forum topics (HTTP ${tr.status})`);
+    const td = await tr.json();
+    const months = td.months || [];
+
+    let packsScanned = 0, packsSkipped = 0;
+    for (const month of months) {
+      const feedbackTopics = (month.results || []).filter(t => t.kind === 'feedback');
+      const orderingTopics = (month.results || []).filter(t => t.kind === 'ordering');
+      for (const ft of feedbackTopics) {
+        const device = bestDeviceMatch(ft.title, distinctDevices);
+        if (!device) { packsSkipped++; continue; }
+        const packShipments = shipments.filter(s => s.device === device && packageMatchesMonth(s.package_label, month.label));
+        if (!packShipments.length) { packsSkipped++; continue; }
+
+        setLog(`Scanning ${device} — ${month.label}...`);
+        const feedbackId = parseUrl(ft.url).id;
+        const feedbackPosts = await fetchPosts(feedbackId, apiKey);
+        const feedbackUsers = forumUsersFromPosts(feedbackPosts);
+
+        const orderingMatch = orderingTopics.find(t => bestDeviceMatch(t.title, [device]) === device);
+        let orderingUsers = [];
+        if (orderingMatch) {
+          const orderingPosts = await fetchPosts(parseUrl(orderingMatch.url).id, apiKey);
+          orderingUsers = forumUsersFromPosts(orderingPosts);
+        }
+
+        const feedbackSet = new Set(feedbackUsers.map(n => n.toLowerCase().trim()));
+        const orderingSet = new Set(orderingUsers.map(n => n.toLowerCase().trim()));
+
+        // A person can have more than one shipment row for the same device
+        // + month (e.g. a color variant re-upload) -- one participant entry
+        // per person, not per row.
+        const seenPeople = new Map();
+        packShipments.forEach(s => {
+          const key = (s.nickname || s.email || s.full_name || '').toLowerCase().trim();
+          if (key && !seenPeople.has(key)) seenPeople.set(key, s);
+        });
+
+        const participants = [...seenPeople.values()].map(s => {
+          const nickLower = (s.nickname || '').toLowerCase().trim();
+          const isActive = matchesNickname(nickLower, feedbackSet) || matchesNickname(nickLower, orderingSet);
+          return { nickname: s.nickname || '', email: s.email || '', full_name: s.full_name || '', status: isActive ? 'active' : 'no_posts' };
+        });
+
+        if (participants.length) {
+          await fetch(`${PROXY_BASE}/proxy/external-qa/scan`, {
+            method: 'POST', headers: teamCodeHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+              participants, topic_id: feedbackId,
+              topic_title: `${device} (${month.label})`,
+              source_file: 'auto-scan',
+            })
+          }).catch(() => {});
+          packsScanned++;
+        }
+      }
+    }
+    setLog(`Last scan: checked ${packsScanned} pack${packsScanned !== 1 ? 's' : ''}${packsSkipped ? `, skipped ${packsSkipped} with no matching shipments` : ''} — ${new Date().toLocaleTimeString()}`);
+  } catch (e) {
+    setLog(`Auto-scan couldn't finish: ${e.message}`);
+  }
+  loadStats();
 }
 
 async function loadStats() {
