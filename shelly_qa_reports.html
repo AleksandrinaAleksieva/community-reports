@@ -797,6 +797,30 @@ th.sortable:hover{color:var(--text)}
   </div>
 </div>
 
+<!-- PERSON COMMENTS MODAL -->
+<div class="overlay" id="comments-overlay">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hdr">
+      <span class="modal-hdr-title">💬 Notes — <span id="comments-person-name"></span></span>
+      <button class="modal-close" onclick="closeComments()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint" style="margin-top:0">Visible to anyone on the team with access to this page — don't include anything you wouldn't want the whole team to see.</p>
+      <div id="comments-list"><div class="fb-empty">No notes yet.</div></div>
+      <div class="sep">Add a note</div>
+      <div class="field"><label>Your name <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="comment-author" placeholder="e.g. Aleksandrina"></div>
+      <div class="field"><label>Note</label><textarea id="comment-text" rows="3" placeholder="e.g. Reached out on 30 Sep, said they'd post feedback this week"></textarea></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="submitComment()">Add note</button>
+        <span id="comment-status" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-secondary" onclick="closeComments()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -2052,7 +2076,10 @@ function statsTopicsCell(topics) {
 function statsPeopleTable(people, emptyMsg) {
   if (!people.length) return `<div class="fb-empty">${emptyMsg}</div>`;
   const th = (label, extra) => `<th style="background:var(--surf2);padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted)${extra||''}">${label}</th>`;
-  const rowsHtml = people.map(p => `<tr>
+  const rowsHtml = people.map(p => {
+    const count = (window._personComments && window._personComments[p.person_key] || []).length;
+    const displayName = escHtml(p.full_name || p.nickname || p.email || 'this person');
+    return `<tr>
     <td style="padding:9px 12px;font-size:13px;font-weight:600">${p.full_name || '—'}</td>
     <td style="padding:9px 12px;font-size:12px;color:var(--blue)">${p.nickname || '—'}</td>
     <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${p.email || '—'}</td>
@@ -2060,8 +2087,100 @@ function statsPeopleTable(people, emptyMsg) {
     <td style="padding:9px 12px;font-size:12px;text-align:center">${statsTopicsCell(p.topics)}</td>
     <td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;color:${p.participation_rate>=70?'var(--green)':p.participation_rate>=40?'var(--amber)':'var(--red)'}">${p.participation_rate}%</td>
     <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${statsFmtDate(p.last_active_at)}</td>
-  </tr>`).join('');
-  return `<table><thead><tr>${th('Name')}${th('Nickname')}${th('Email')}${th('Scans', ';text-align:center')}${th('Topics', ';text-align:center')}${th('Rate', ';text-align:center')}${th('Last active')}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    <td style="padding:9px 12px;font-size:12px;text-align:center"><button class="btn btn-sm" style="padding:3px 9px;font-size:11px" data-person-key="${escAttr(p.person_key)}" data-name="${escAttr(displayName)}" onclick="openComments(this)">💬${count ? ' '+count : ''}</button></td>
+  </tr>`;
+  }).join('');
+  return `<table><thead><tr>${th('Name')}${th('Nickname')}${th('Email')}${th('Scans', ';text-align:center')}${th('Topics', ';text-align:center')}${th('Rate', ';text-align:center')}${th('Last active')}${th('Notes', ';text-align:center')}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+}
+
+// ── Person comments (shared, persisted notes on the Statistics tab) ─────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escAttr(s) {
+  // Same escaping is safe inside a double-quoted HTML attribute.
+  return escHtml(s);
+}
+
+async function loadPersonComments() {
+  window._personComments = window._personComments || {};
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/person-comments`, { headers: teamCodeHeaders() });
+    const d = await r.json();
+    if (!r.ok) return;
+    const grouped = {};
+    (d.comments || []).forEach(c => {
+      (grouped[c.person_key] = grouped[c.person_key] || []).push(c);
+    });
+    window._personComments = grouped;
+  } catch (e) { /* comment counts are a nice-to-have; stay silent on failure */ }
+}
+
+function renderCommentsList() {
+  const listEl = document.getElementById('comments-list');
+  const comments = (window._personComments && window._personComments[window._commentsPersonKey]) || [];
+  if (!comments.length) { listEl.innerHTML = `<div class="fb-empty">No notes yet.</div>`; return; }
+  listEl.innerHTML = comments.map(c => `
+    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-size:12px;font-weight:700;color:var(--blue)">${escHtml(c.author || 'Anonymous')}</span>
+        <span style="font-size:11px;color:var(--muted)">${statsFmtDate(c.created_at)}</span>
+      </div>
+      <div style="font-size:13px;margin-top:4px;white-space:pre-wrap">${escHtml(c.comment)}</div>
+      <div style="margin-top:6px"><button class="btn btn-sm" style="padding:2px 8px;font-size:11px" onclick="deleteComment(${c.id})">Remove</button></div>
+    </div>
+  `).join('');
+}
+
+function openComments(btn) {
+  window._commentsPersonKey = btn.dataset.personKey;
+  document.getElementById('comments-person-name').textContent = btn.dataset.name;
+  document.getElementById('comment-text').value = '';
+  document.getElementById('comment-status').textContent = '';
+  renderCommentsList();
+  document.getElementById('comments-overlay').classList.add('open');
+}
+function closeComments() { document.getElementById('comments-overlay').classList.remove('open'); }
+
+async function submitComment() {
+  const personKey = window._commentsPersonKey;
+  const comment = document.getElementById('comment-text').value.trim();
+  const author = document.getElementById('comment-author').value.trim();
+  const statusEl = document.getElementById('comment-status');
+  if (!personKey || !comment) { statusEl.textContent = 'Write a note first.'; return; }
+  statusEl.textContent = 'Saving...';
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/person-comments`, {
+      method: 'POST', headers: teamCodeHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ person_key: personKey, comment, author })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
+    (window._personComments[personKey] = window._personComments[personKey] || []).push(d.comment);
+    document.getElementById('comment-text').value = '';
+    statusEl.textContent = '';
+    renderCommentsList();
+    // Refresh the visible comment-count badges without a full stats reload.
+    loadStats();
+  } catch (e) {
+    statusEl.textContent = `❌ ${e.message}`;
+  }
+}
+
+async function deleteComment(id) {
+  if (!confirm('Remove this note?')) return;
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/person-comments/${id}`, { method: 'DELETE', headers: teamCodeHeaders() });
+    if (!r.ok && r.status !== 404) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : `HTTP ${r.status}`);
+    const key = window._commentsPersonKey;
+    if (key && window._personComments[key]) {
+      window._personComments[key] = window._personComments[key].filter(c => c.id !== id);
+    }
+    renderCommentsList();
+    loadStats();
+  } catch (e) {
+    document.getElementById('comment-status').textContent = `❌ ${e.message}`;
+  }
 }
 
 function statsRenderChart(topicStats) {
@@ -2107,7 +2226,10 @@ async function loadStats() {
   const inactiveEl = document.getElementById('stats-recently-inactive');
 
   try {
-    const r = await fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`, { headers: teamCodeHeaders() });
+    const [r] = await Promise.all([
+      fetch(`${PROXY_BASE}/proxy/external-qa/stats?${params.toString()}`, { headers: teamCodeHeaders() }),
+      loadPersonComments(),
+    ]);
     const d = await r.json();
     if (!r.ok) throw new Error(r.status === 403 ? teamCodeErrorMsg(403) : (d.error || `HTTP ${r.status}`));
 
