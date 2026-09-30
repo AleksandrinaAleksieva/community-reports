@@ -1409,13 +1409,13 @@ function buildConfHtml() {
     const rows = window._applicants;
     if (!rows?.length) return '';
     const allKeys     = Object.keys(rows[0]);
-    const nameKey     = allKeys.find(k => /your full name/i.test(k)) || allKeys[0];
-    const emailKey    = allKeys.find(k => /your email/i.test(k));
-    const nicknameKey = allKeys.find(k => /nickname|shelly.?forum/i.test(k));
+    const nameKey     = logiFindField(allKeys, /your\s+full\s*name/i, /^full\s*name$/i, /^name$/i) || allKeys[0];
+    const emailKey    = logiFindField(allKeys, /your\s+email/i, /^e-?mail$/i);
+    const nicknameKey = logiFindField(allKeys, /your\s+nickname/i, /nickname/i, /shelly.?forum/i);
     const contributors = new Set((window._forumUsernames||[]).map(n => n.toLowerCase().trim()));
     let active = 0, inactive = 0;
     const tableRows = rows.map(row => {
-      const name = row[nameKey]||'—', email = emailKey?row[emailKey]||'—':null, nickname = nicknameKey?(row[nicknameKey]||'').trim():'';
+      const name = row[nameKey]||'—', email = emailKey?row[emailKey]||'—':null, nickname = nicknameKey?String(row[nicknameKey]??'').trim():'';
       const nickLower = nickname.toLowerCase();
       const isActive = contributors.size===0?null:contributors.has(nickLower)||(nickLower.length>2&&[...contributors].some(c=>c===nickLower));
       if (isActive===true) active++; else if (isActive===false) inactive++;
@@ -1542,7 +1542,7 @@ function renderApplicants(rows, forumUsernames) {
   const contributors=new Set((forumUsernames||[]).map(n=>n.toLowerCase().trim()));
   let active=0,inactive=0;
   const rows_html=rows.map(row=>{
-    const name=row[nameKey]||'—', email=emailKey?row[emailKey]:null, nickname=nicknameKey?(row[nicknameKey]||'').trim():'';
+    const name=row[nameKey]||'—', email=emailKey?row[emailKey]:null, nickname=nicknameKey?String(row[nicknameKey]??'').trim():'';
     const nickLower=nickname.toLowerCase();
     const isActive=contributors.size===0?null:contributors.has(nickLower)||(nickLower.length>2&&[...contributors].some(c=>c===nickLower||c.replace(/[\s._-]/g,'')===nickLower.replace(/[\s._-]/g,'')));
     if (isActive===true) active++; else if (isActive===false) inactive++;
@@ -1562,13 +1562,13 @@ function renderApplicants(rows, forumUsernames) {
 
     // Persist this scan so the Statistics tab can show trends over time.
     const participants = rows.map(row => {
-      const nickname = nicknameKey ? (row[nicknameKey]||'').trim() : '';
+      const nickname = nicknameKey ? String(row[nicknameKey]??'').trim() : '';
       const nickLower = nickname.toLowerCase();
       const isActive = contributors.has(nickLower) || (nickLower.length>2 && [...contributors].some(c=>c===nickLower||c.replace(/[\s._-]/g,'')===nickLower.replace(/[\s._-]/g,'')));
       return {
         nickname,
-        email: emailKey ? (row[emailKey]||'') : '',
-        full_name: row[nameKey] || '',
+        email: emailKey ? String(row[emailKey]??'') : '',
+        full_name: String(row[nameKey]??''),
         status: isActive ? 'active' : 'no_posts',
       };
     });
