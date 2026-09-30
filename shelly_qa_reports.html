@@ -354,20 +354,12 @@ th.sortable:hover{color:var(--text)}
 
     <span class="nav-divider"></span>
 
-    <button class="nav-item" onclick="goPage('community',this)" title="People in this QA pack: who applied and how active they are on the forum, or browse all registered forum members">
+    <button class="nav-item" onclick="goPage('community',this)" title="People in this QA pack: applicants, all forum members, and participation trends over time">
       👥 Community
     </button>
 
-    <button class="nav-item" onclick="goPage('logistics',this)" title="Convert a device-ordering form export into a ready-to-ship logistics list">
-      📦 Logistics
-    </button>
-
-    <button class="nav-item" onclick="goPage('participation',this)" title="Look up which devices/colors were shipped to a specific person, filterable by user, device or package">
-      🔎 Participation
-    </button>
-
-    <button class="nav-item" onclick="goPage('stats',this)" title="Trends across all saved scans: who's most/least active, who never participates">
-      📊 Statistics
+    <button class="nav-item" onclick="goPage('logistics',this)" title="Convert ordering forms into shipment lists, and see what's been dispatched to whom">
+      📦 Logistics documents
     </button>
   </div>
 
@@ -553,22 +545,23 @@ th.sortable:hover{color:var(--text)}
   </div>
 </div>
 
-<!-- COMMUNITY (External QAs + Members, combined) -->
+<!-- COMMUNITY (External QAs + Members + Statistics, combined) -->
 <div class="page" id="page-community">
   <div class="page-header">
     <h1>Community</h1>
-    <p>People connected to this QA program — who applied and how active they are, or anyone registered on the forum.</p>
+    <p>People connected to this QA program — who applied, how active they are, anyone registered on the forum, and participation trends over time.</p>
   </div>
   <div class="rtabs">
     <button class="rtab active" onclick="goRtab('externalqa',this)" title="People who applied for the current QA package, cross-referenced with forum activity to spot non-contributors">👥 External QAs</button>
-    <button class="rtab" onclick="goRtab('members',this)" title="Browse and filter every registered user on the Shelly Community forum, not just this package's applicants">🌐 All Members</button>
+    <button class="rtab" onclick="goRtab('members',this)" title="Browse and filter every registered user on the Shelly Community forum, not just this package's applicants">🌐 Explore members</button>
+    <button class="rtab" onclick="goRtab('stats',this)" title="Trends across all saved scans: who's most/least active, who never participates">📊 Statistics</button>
   </div>
 
   <div class="rpanel active" id="panel-externalqa">
     <div class="card">
       <div class="card-header"><span class="card-title">Upload Microsoft Forms responses</span></div>
       <div class="card-body">
-        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Upload the applicant list for this QA package. Each upload is saved as a scan, so trends show up on the Statistics tab.</p>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Upload the applicant list for this QA package. Each upload is saved as a scan, so trends show up on the Statistics tab. If this file also includes device-request columns, those are saved to Dispatched devices automatically too.</p>
         <div class="upload-area" id="upload-area" onclick="document.getElementById('excel-input').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
           ondragleave="this.style.borderColor=''"
@@ -598,92 +591,89 @@ th.sortable:hover{color:var(--text)}
       </div>
     </div>
   </div>
-</div>
 
-<!-- LOGISTICS (Ordering -> Logistics converter) -->
-<div class="page" id="page-logistics">
-  <div class="page-header">
-    <h1>Ordering → Logistics</h1>
-    <p>Convert a Microsoft Forms device-ordering export into a logistics-ready shipment list</p>
-  </div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Upload form responses</span></div>
-    <div class="card-body">
-      <div class="upload-area" id="logi-upload-area" onclick="document.getElementById('logi-input').click()"
-        ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
-        ondragleave="this.style.borderColor=''"
-        ondrop="handleLogiDrop(event)">
-        <div class="upload-icon">📦</div>
-        <div class="upload-title">Click to upload or drag & drop</div>
-        <div class="upload-sub">.xlsx or .csv ordering form export</div>
-        <input type="file" id="logi-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLogiFile(this.files[0])">
-      </div>
-      <div class="row2" style="margin-top:14px">
-        <div class="field"><label>Package label</label><input type="text" id="logi-package-label" placeholder="e.g. QA Pack September 2026" onchange="logiOnPackageLabelChange()"></div>
-        <div class="field" style="align-self:end">
-          <button class="btn btn-primary" id="logi-download-btn" onclick="downloadLogistics()" disabled>⬇ Download logistics .xlsx</button>
+  <div class="rpanel" id="panel-stats">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Filters</span></div>
+      <div class="card-body">
+        <div class="filter-bar">
+          <div class="field"><label>Nickname</label><input type="text" id="stats-nickname" oninput="loadStats()"></div>
+          <div class="field"><label>Email</label><input type="text" id="stats-email" oninput="loadStats()"></div>
+          <div class="field"><label>Name</label><input type="text" id="stats-name" oninput="loadStats()"></div>
+          <div class="field"><label>Since</label><input type="date" id="stats-since" onchange="loadStats()"></div>
+          <button class="btn btn-primary" onclick="loadStats()" style="margin-top:20px">Refresh</button>
         </div>
       </div>
-      <p class="hint" style="margin-top:6px">Uploaded rows are saved to Participation history automatically — re-uploading the same data just updates it, it won't duplicate.</p>
-      <div id="logi-totals" style="margin-top:14px"></div>
-      <div id="logi-preview" style="margin-top:14px"></div>
-      <div style="margin-top:14px"><span id="logi-save-status" style="font-size:12px;color:var(--muted)"></span></div>
+    </div>
+    <div id="stats-summary" style="margin:14px 0"></div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Most active</span></div>
+      <div class="card-body"><div class="table-wrap" id="stats-most-active"><div class="fb-empty">No scans saved yet.</div></div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-header"><span class="card-title">Least active</span></div>
+      <div class="card-body"><div class="table-wrap" id="stats-least-active"><div class="fb-empty">No scans saved yet.</div></div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-header"><span class="card-title">Never participated</span></div>
+      <div class="card-body"><div class="table-wrap" id="stats-never-active"><div class="fb-empty">No scans saved yet.</div></div></div>
     </div>
   </div>
 </div>
 
-<!-- PARTICIPATION (device shipment filters) -->
-<div class="page" id="page-participation">
+<!-- LOGISTICS DOCUMENTS (Ordering -> Logistics converter + Dispatched devices) -->
+<div class="page" id="page-logistics">
   <div class="page-header">
-    <h1>Participation</h1>
-    <p>Filter historical device shipments by user, name, device or color</p>
+    <h1>Logistics documents</h1>
+    <p>Convert device-ordering forms into shipment lists, and see what's already been dispatched to whom.</p>
   </div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Filters</span></div>
-    <div class="card-body">
-      <div class="filter-bar">
-        <div class="field"><label>User (name / email / nickname)</label><input type="text" id="part-user" placeholder="Search..." oninput="loadParticipation()"></div>
-        <div class="field"><label>Device</label><select id="part-device" onchange="loadParticipation()"><option value="">All devices</option></select></div>
-        <div class="field"><label>Color</label><select id="part-color" onchange="loadParticipation()"><option value="">All colors</option></select></div>
-        <div class="field"><label>Package</label><select id="part-package" onchange="loadParticipation()"><option value="">All packages</option></select></div>
-        <button class="btn btn-primary" onclick="loadParticipation()" style="margin-top:20px">Refresh</button>
-      </div>
-      <div id="part-status" style="font-size:12px;color:var(--muted);margin:10px 0;display:none"></div>
-      <div class="table-wrap"><div id="part-table"><div class="fb-empty">No shipment data yet — upload a file on the Logistics tab first.</div></div></div>
-    </div>
+  <div class="rtabs">
+    <button class="rtab active" onclick="goRtab('logidocs',this)" title="Upload a device-ordering form export and convert it into a logistics-ready shipment list">📄 Logistics documents</button>
+    <button class="rtab" onclick="goRtab('dispatched',this)" title="Every device shipment saved so far, from both Logistics documents and Community uploads, filterable by user/device/color/package">🚚 Dispatched devices</button>
   </div>
-</div>
 
-<!-- STATISTICS dashboard -->
-<div class="page" id="page-stats">
-  <div class="page-header">
-    <h1>Statistics</h1>
-    <p>Participation trends across all saved External QA scans</p>
-  </div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Filters</span></div>
-    <div class="card-body">
-      <div class="filter-bar">
-        <div class="field"><label>Nickname</label><input type="text" id="stats-nickname" oninput="loadStats()"></div>
-        <div class="field"><label>Email</label><input type="text" id="stats-email" oninput="loadStats()"></div>
-        <div class="field"><label>Name</label><input type="text" id="stats-name" oninput="loadStats()"></div>
-        <div class="field"><label>Since</label><input type="date" id="stats-since" onchange="loadStats()"></div>
-        <button class="btn btn-primary" onclick="loadStats()" style="margin-top:20px">Refresh</button>
+  <div class="rpanel active" id="panel-logidocs">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Upload form responses</span></div>
+      <div class="card-body">
+        <div class="upload-area" id="logi-upload-area" onclick="document.getElementById('logi-input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="handleLogiDrop(event)">
+          <div class="upload-icon">📦</div>
+          <div class="upload-title">Click to upload or drag & drop</div>
+          <div class="upload-sub">.xlsx or .csv ordering form export</div>
+          <input type="file" id="logi-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLogiFile(this.files[0])">
+        </div>
+        <div class="row2" style="margin-top:14px">
+          <div class="field"><label>Package label</label><input type="text" id="logi-package-label" placeholder="e.g. QA Pack September 2026" onchange="logiOnPackageLabelChange()"></div>
+          <div class="field" style="align-self:end">
+            <button class="btn btn-primary" id="logi-download-btn" onclick="downloadLogistics()" disabled>⬇ Download logistics .xlsx</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:6px">Uploaded rows are saved to Dispatched devices automatically — re-uploading the same data (or the same person+device from a Community upload) just updates it, it won't duplicate.</p>
+        <div id="logi-totals" style="margin-top:14px"></div>
+        <div id="logi-preview" style="margin-top:14px"></div>
+        <div style="margin-top:14px"><span id="logi-save-status" style="font-size:12px;color:var(--muted)"></span></div>
       </div>
     </div>
   </div>
-  <div id="stats-summary" style="margin:14px 0"></div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Most active</span></div>
-    <div class="card-body"><div class="table-wrap" id="stats-most-active"><div class="fb-empty">No scans saved yet.</div></div></div>
-  </div>
-  <div class="card" style="margin-top:14px">
-    <div class="card-header"><span class="card-title">Least active</span></div>
-    <div class="card-body"><div class="table-wrap" id="stats-least-active"><div class="fb-empty">No scans saved yet.</div></div></div>
-  </div>
-  <div class="card" style="margin-top:14px">
-    <div class="card-header"><span class="card-title">Never participated</span></div>
-    <div class="card-body"><div class="table-wrap" id="stats-never-active"><div class="fb-empty">No scans saved yet.</div></div></div>
+
+  <div class="rpanel" id="panel-dispatched">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Filters</span></div>
+      <div class="card-body">
+        <div class="filter-bar">
+          <div class="field"><label>User (name / email / nickname)</label><input type="text" id="part-user" placeholder="Search..." oninput="loadParticipation()"></div>
+          <div class="field"><label>Device</label><select id="part-device" onchange="loadParticipation()"><option value="">All devices</option></select></div>
+          <div class="field"><label>Color</label><select id="part-color" onchange="loadParticipation()"><option value="">All colors</option></select></div>
+          <div class="field"><label>Package</label><select id="part-package" onchange="loadParticipation()"><option value="">All packages</option></select></div>
+          <button class="btn btn-primary" onclick="loadParticipation()" style="margin-top:20px">Refresh</button>
+        </div>
+        <div id="part-status" style="font-size:12px;color:var(--muted);margin:10px 0;display:none"></div>
+        <div class="table-wrap"><div id="part-table"><div class="fb-empty">No shipment data yet — upload a file above, or in Community.</div></div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -838,8 +828,6 @@ function goPage(name, btn) {
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
   if (btn) btn.classList.add('active');
-  if (name === 'stats') loadStats();
-  if (name === 'participation') loadParticipation();
 }
 function goRtab(name, btn) {
   document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
@@ -847,6 +835,8 @@ function goRtab(name, btn) {
   if (btn) btn.classList.add('active');
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
+  if (name === 'stats') loadStats();
+  if (name === 'dispatched') loadParticipation();
 }
 function enableNav(id) {
   const el = document.getElementById(id);
@@ -981,47 +971,53 @@ async function loadHomeTopics() {
   }
   container.innerHTML = `<div class="fb-empty">Loading topics...</div>`;
   try {
-    // Get current month/year to filter relevant topics
-    const now   = new Date();
-    const month = now.toLocaleString('en-US', {month:'long'});
-    const year  = now.getFullYear();
-
-    // Fetch feedback topics from the current QA pack (walks the monthly subforum)
-    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics`, {
+    // Fetch feedback topics grouped by QA-pack month, newest first -- packs
+    // are often created a few days ahead of the month they're for, so this
+    // isn't limited to the current calendar month. Scroll down for older
+    // months; the page itself scrolls, nothing special needed.
+    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?months=6`, {
       headers: { 'X-IPS-Key': apiKey }
     });
 
-    let topics = [];
+    let months = [];
     if (tr.ok) {
       const data = await tr.json();
-      topics = (data.results || []).filter(t =>
-        /feedback/i.test(t.title) && !(/ordering/i.test(t.title))
-      );
+      months = (data.months || []).map(m => ({
+        ...m,
+        results: (m.results || []).filter(t => /feedback/i.test(t.title) && !(/ordering/i.test(t.title)))
+      })).filter(m => m.results.length);
     }
 
-    if (!topics.length) {
-      container.innerHTML = `<div class="fb-empty">No active feedback topics found for ${month} ${year}.<br>
-        <a href="https://community.shelly.cloud/forum/367-qa-pack-${month.toLowerCase()}-${year}/" target="_blank" style="color:var(--blue)">Check the forum →</a></div>`;
+    if (!months.length) {
+      container.innerHTML = `<div class="fb-empty">No active feedback topics found in the last few months.<br>
+        <a href="https://community.shelly.cloud/" target="_blank" style="color:var(--blue)">Check the forum →</a></div>`;
       return;
     }
 
-    document.getElementById('stat-topics').textContent = topics.length;
-    container.innerHTML = `<div style="padding:12px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">` +
-      topics.map(t => {
-        const replies = t.replies || 0;
-        const lastPost = t.lastPost?.date ? new Date(t.lastPost.date).toLocaleDateString('en-GB') : '—';
-        return `<div class="topic-card" onclick="useTopicUrl('${t.url}')">
-          <div class="topic-name">${t.title}</div>
-          <div class="topic-meta">
-            <span class="badge-new badge-active">● Active</span>
-            <span>Last post: ${lastPost}</span>
-          </div>
-          <div class="topic-stats">
-            <span class="topic-stat posts">💬 ${replies} replies</span>
-          </div>
-          <div style="font-size:11px;color:var(--blue);margin-top:4px">Click to analyze →</div>
-        </div>`;
-      }).join('') + `</div>`;
+    const totalTopics = months.reduce((n, m) => n + m.results.length, 0);
+    document.getElementById('stat-topics').textContent = totalTopics;
+
+    container.innerHTML = months.map(m => `
+      <div style="padding:4px 20px 8px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 10px">${m.label}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+          ${m.results.map(t => {
+            const replies = t.replies || 0;
+            const lastPost = t.lastPost?.date ? new Date(t.lastPost.date).toLocaleDateString('en-GB') : '—';
+            return `<div class="topic-card" onclick="useTopicUrl('${t.url}')">
+              <div class="topic-name">${t.title}</div>
+              <div class="topic-meta">
+                <span class="badge-new badge-active">● Active</span>
+                <span>Last post: ${lastPost}</span>
+              </div>
+              <div class="topic-stats">
+                <span class="topic-stat posts">💬 ${replies} replies</span>
+              </div>
+              <div style="font-size:11px;color:var(--blue);margin-top:4px">Click to analyze →</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
   } catch(e) {
     container.innerHTML = `<div class="fb-empty">Could not load topics: ${e.message}</div>`;
   }
@@ -1572,6 +1568,21 @@ function renderApplicants(rows, forumUsernames) {
       })
     }).catch(()=>{});
   }
+
+  // Some months the applicant form also asks which device(s) someone wants
+  // (not just who applied). If this upload has device-answer columns, pull
+  // those out too and save them as shipments -- same dedup logic as the
+  // Logistics tab, keyed on person+device+package, so the same person
+  // requesting the same device on both forms doesn't create two records.
+  const { shipmentRows } = logiConvert(rows);
+  if (shipmentRows.length) {
+    const packageLabel = meta.packageLabel || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    fetch(`${PROXY_BASE}/proxy/device-shipments/upload`, {
+      method: 'POST',
+      headers: teamCodeHeaders({'Content-Type': 'application/json'}),
+      body: JSON.stringify({ rows: shipmentRows, package_label: packageLabel, source_file: window._applicantsFileName || null })
+    }).catch(()=>{});
+  }
 }
 
 // ── Members ───────────────────────────────────────────────────────────────────
@@ -1722,17 +1733,29 @@ async function loadFromEmailLink(topicId) {
 }
 
 // ── Ordering → Logistics converter ──────────────────────────────────────────────
+// Microsoft Forms exports name every real question "Your X:" (e.g. "Your
+// email:", "Your full name:") while ALSO including its own blank/anonymous
+// account columns literally called "Email" and "Name" -- so naive prefix
+// matching on the bare word picks the wrong (empty/"anonymous") column. The
+// regexes below prefer the "Your ..." form first, matching the same
+// approach already proven in renderApplicants() for the External QAs page.
 const LOGI_POSITIVE_PHRASES = ['i want', 'i will use'];
-const LOGI_META_EXACT  = new Set(['id','name','email']);
-const LOGI_META_STARTS = ['nickname','email','full name','phone','country','address','city'];
+// Non-device administrative columns Microsoft Forms always adds, plus the
+// applicant-identity questions -- none of these are device-answer columns.
+const LOGI_META_PATTERNS = [
+  /^id$/i, /^start time$/i, /^completion time$/i, /^last modified time$/i,
+  /^email$/i, /^name$/i, /^_sheet_id$/i,
+  /your\s+(nickname|email|full\s*name|phone|country|address)/i,
+  /shelly.?forum/i, /^city/i, /postal\s*code/i,
+];
 
 function logiShouldInclude(val) {
   const s = String(val ?? '').toLowerCase();
   return LOGI_POSITIVE_PHRASES.some(p => s.includes(p));
 }
 function logiIsMeta(col) {
-  const c = (col || '').toLowerCase().trim();
-  return LOGI_META_EXACT.has(c) || LOGI_META_STARTS.some(p => c.startsWith(p));
+  const c = (col || '').trim();
+  return LOGI_META_PATTERNS.some(p => p.test(c));
 }
 function logiIsColor(col) {
   const c = (col || '').toLowerCase();
@@ -1749,8 +1772,15 @@ function logiDetectDevices(keys) {
   }
   return devices;
 }
-function logiFindFirst(keys, prefixes) {
-  return keys.find(k => prefixes.some(p => (k || '').toLowerCase().trim().startsWith(p))) || null;
+// Prefer the real "Your X:" question column; only fall back to a bare
+// "X"-named column (e.g. a plain "Email" header) if no "Your X" exists --
+// some exports are simpler and don't use the "Your..." phrasing at all.
+function logiFindField(keys, ...regexes) {
+  for (const re of regexes) {
+    const found = keys.find(k => re.test(k || ''));
+    if (found) return found;
+  }
+  return null;
 }
 
 let _logiRows = null, _logiConverted = null, _logiTotals = null;
@@ -1785,13 +1815,15 @@ async function handleLogiFile(file) {
 function logiConvert(rows) {
   const keys = Object.keys(rows[0] || {});
   const devices  = logiDetectDevices(keys);
-  const nameKey  = logiFindFirst(keys, ['full name', 'name']);
-  const emailKey = logiFindFirst(keys, ['email']);
-  const nickKey  = logiFindFirst(keys, ['nickname']);
-  const phoneKey = logiFindFirst(keys, ['phone']);
-  const countryKey = logiFindFirst(keys, ['country']);
-  const addressKey = logiFindFirst(keys, ['address']);
-  const cityKey     = logiFindFirst(keys, ['city']);
+  // Prefer "Your X:" (the real question) over a bare same-named column
+  // (Microsoft Forms' own blank/anonymous account field).
+  const nameKey     = logiFindField(keys, /your\s+full\s*name/i, /^full\s*name$/i, /^name$/i);
+  const emailKey    = logiFindField(keys, /your\s+email/i, /^email$/i);
+  const nickKey     = logiFindField(keys, /your\s+nickname/i, /nickname/i, /shelly.?forum/i);
+  const phoneKey    = logiFindField(keys, /your\s+phone/i, /^phone/i);
+  const countryKey  = logiFindField(keys, /your\s+country/i, /^country/i);
+  const addressKey  = logiFindField(keys, /your\s+address/i, /^address/i);
+  const cityKey     = logiFindField(keys, /city/i);
 
   const totals = {}; // deviceName -> { count, answers:{}, colors:{} }
   const out = [];    // one row per respondent with any included device
@@ -1802,7 +1834,7 @@ function logiConvert(rows) {
     devices.forEach(({ key, colorCol }) => {
       const val = row[key];
       if (!logiShouldInclude(val)) return;
-      const devName = key;
+      const devName = (key || '').trim();
       const color = colorCol ? String(row[colorCol] ?? '').trim() : '';
       lines.push(`• ${devName} - 1 pc${color ? `  Color: ${color}` : ''}`);
       if (!totals[devName]) totals[devName] = { count: 0, answers: {}, colors: {} };
