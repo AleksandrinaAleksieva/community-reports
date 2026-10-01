@@ -2329,44 +2329,22 @@ function bestDeviceMatch(topicTitle, devices) {
   return best;
 }
 
-function packageMatchesMonth(packageLabel, monthLabel) {
-  const a = (packageLabel || '').toLowerCase().trim();
-  const b = (monthLabel || '').toLowerCase().trim();
-  if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
-}
-
-const _JS_MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-
-// Pulls a "<month> <year>" out of a free-text label like "QA Pack July 2026"
-// or "July 2026" and returns how many whole calendar months ago that is
-// relative to today. Returns null if no month+year can be found.
-function monthsAgoFromLabel(label) {
-  const s = (label || '').toLowerCase();
-  const yearMatch = s.match(/\b(20\d{2})\b/);
-  if (!yearMatch) return null;
-  const year = parseInt(yearMatch[1], 10);
-  const monthIdx = _JS_MONTH_NAMES.findIndex(m => new RegExp(`\\b${m}\\b`).test(s));
-  if (monthIdx === -1) return null;
-  const now = new Date();
-  return (now.getFullYear() * 12 + now.getMonth()) - (year * 12 + monthIdx);
-}
-
-// How far back the auto-scan needs to look, in months, so that even the
-// OLDEST QA pack actually present in device_shipments is covered -- instead
-// of a fixed guess that silently excludes older/long-running packs (e.g.
-// "QA Pack July 2026" being invisible to a hardcoded 3-month window once
-// the calendar rolls into October). Floors at 3 (the old default) so recent
-// packs are always covered even if label parsing fails, and caps at 24 to
-// avoid an unbounded number of forum API calls from a bad/garbage label.
-function monthsNeededFor(shipments) {
-  let maxAgo = 3;
-  shipments.forEach(s => {
-    const ago = monthsAgoFromLabel(s.package_label);
-    if (ago !== null && ago > maxAgo) maxAgo = ago;
-  });
-  return Math.min(maxAgo + 1, 24); // +1 margin for month-boundary edge cases
-}
+// NOTE on package_label: it is kept as display/filter metadata (shown in
+// the Dispatched Devices table) but is deliberately NOT used to gate which
+// shipments get checked against which forum topic. It turns out the label
+// people type in (or a filename like "QA_Pack_May_2026_-...-Shelly_Camera")
+// usually names the ORDERING ROUND's month -- when applications were
+// collected -- which is routinely 1-2 months earlier than the QA PACK
+// FORUM's month, i.e. when the device actually ships and its Feedback
+// topic opens (confirmed case: Jónatas applied for the Camera in the May
+// 2026 ordering round, but the Camera's real Feedback topic lives under
+// "QA Pack July 2026"). Matching shipments to topics by month label was
+// therefore comparing two different and un-synchronized calendars and
+// would keep silently skipping real packs no matter how the label is
+// entered. Matching by DEVICE NAME ALONE (below) sidesteps this entirely:
+// anyone on record as having received device X is checked against every
+// Feedback/Ordering topic that resolves to device X, in any month found.
+const AUTO_SCAN_MONTHS_LOOKBACK = 12; // generous fixed window; see note above
 
 async function autoScanParticipation() {
   const apiKey = document.getElementById('nodebb_key').value.trim();
@@ -2382,10 +2360,9 @@ async function autoScanParticipation() {
     const shipments = shipD.rows || [];
     if (!shipments.length) { setLog('No shipment records yet — upload a Logistics or External QAs file first, then re-scan.'); return; }
     const distinctDevices = [...new Set(shipments.map(s => s.device).filter(Boolean))];
-    const monthsNeeded = monthsNeededFor(shipments);
 
     setLog('Looking up Feedback + Ordering topics...');
-    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?months=${monthsNeeded}&all=1`, { headers: { 'X-IPS-Key': apiKey } });
+    const tr = await fetch(`${PROXY_BASE}/proxy/qa-active-topics?months=${AUTO_SCAN_MONTHS_LOOKBACK}&all=1`, { headers: { 'X-IPS-Key': apiKey } });
     if (!tr.ok) throw new Error(`Could not load forum topics (HTTP ${tr.status})`);
     const td = await tr.json();
     const months = td.months || [];
@@ -2397,7 +2374,11 @@ async function autoScanParticipation() {
       for (const ft of feedbackTopics) {
         const device = bestDeviceMatch(ft.title, distinctDevices);
         if (!device) { packsSkipped++; continue; }
-        const packShipments = shipments.filter(s => s.device === device && packageMatchesMonth(s.package_label, month.label));
+        // Matched by device name only (see note above AUTO_SCAN_MONTHS_LOOKBACK)
+        // -- not restricted to shipments whose package_label happens to match
+        // this forum month, since those two "months" are tracked separately
+        // and don't line up.
+        const packShipments = shipments.filter(s => s.device === device);
         if (!packShipments.length) { packsSkipped++; continue; }
 
         setLog(`Scanning ${device} — ${month.label}...`);
