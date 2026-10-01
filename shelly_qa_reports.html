@@ -1086,11 +1086,29 @@ function updateHomeStats() {
   }
 }
 
+// Wraps fetch() with 429 (rate limit) retry/backoff. The Community API
+// started returning 429s once the auto-scan began covering many more
+// months/topics in one run (removing the old month-window and
+// package-label restrictions means far more sequential requests). Honors
+// a numeric Retry-After header in seconds if the API sends one, otherwise
+// backs off exponentially (1s, 2s, 4s, 8s, 16s) up to maxRetries attempts
+// before giving up and surfacing the error like before.
+async function fetchWithRetry(url, options, maxRetries = 5) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const r = await fetch(url, options);
+    if (r.status !== 429) return r;
+    if (attempt === maxRetries) return r; // give up, let caller see the 429
+    const retryAfterHeader = parseFloat(r.headers.get('Retry-After'));
+    const waitMs = (Number.isFinite(retryAfterHeader) ? retryAfterHeader * 1000 : 1000 * Math.pow(2, attempt));
+    await new Promise(res => setTimeout(res, waitMs));
+  }
+}
+
 // ── Fetch posts ───────────────────────────────────────────────────────────────
 async function fetchPosts(topicId, apiKey) {
   const posts = []; let page = 1;
   while (true) {
-    const r = await fetch(`${PROXY_BASE}/proxy/topic/${topicId}/posts?page=${page}`, {
+    const r = await fetchWithRetry(`${PROXY_BASE}/proxy/topic/${topicId}/posts?page=${page}`, {
       headers: { 'X-IPS-Key': apiKey }
     });
     if (!r.ok) throw new Error(`Community API ${r.status} ${r.statusText}`);
@@ -2385,12 +2403,19 @@ async function autoScanParticipation() {
         const feedbackId = parseUrl(ft.url).id;
         const feedbackPosts = await fetchPosts(feedbackId, apiKey);
         const feedbackUsers = forumUsersFromPosts(feedbackPosts);
+        // Small pause between topics (on top of fetchPosts' own per-page
+        // pause and 429 retry/backoff) -- scanning now covers a much wider
+        // month window and isn't restricted by package_label any more, so
+        // there are a lot more sequential Community API calls in one run
+        // than when this was first written.
+        await new Promise(res => setTimeout(res, 400));
 
         const orderingMatch = orderingTopics.find(t => bestDeviceMatch(t.title, [device]) === device);
         let orderingUsers = [];
         if (orderingMatch) {
           const orderingPosts = await fetchPosts(parseUrl(orderingMatch.url).id, apiKey);
           orderingUsers = forumUsersFromPosts(orderingPosts);
+          await new Promise(res => setTimeout(res, 400));
         }
 
         const feedbackSet = new Set(feedbackUsers.map(n => n.toLowerCase().trim()));
