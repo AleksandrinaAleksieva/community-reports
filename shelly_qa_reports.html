@@ -435,8 +435,8 @@ th.sortable:hover{color:var(--text)}
               <input type="text" id="device_name" placeholder="Inferred from URL">
             </div>
             <div class="field">
-              <label>Package <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-              <input type="text" id="package_label" placeholder="e.g. September 2026">
+              <label>Package <span style="font-weight:400;color:var(--muted)">(required — must match the QA Pack forum's month, e.g. the topic lives under "QA Pack July 2026")</span></label>
+              <input type="text" id="package_label" placeholder="e.g. July 2026">
             </div>
             <div class="field">
               <label>Firmware <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
@@ -1635,8 +1635,10 @@ function renderApplicants(rows, forumUsernames) {
   // Logistics tab, keyed on person+device+package, so the same person
   // requesting the same device on both forms doesn't create two records.
   const { shipmentRows } = logiConvert(rows);
-  if (shipmentRows.length) {
-    const packageLabel = meta.packageLabel || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  // meta.packageLabel is always set by this point -- runAnalysis() now
+  // refuses to proceed without it (no more silently guessing "today").
+  if (shipmentRows.length && meta.packageLabel) {
+    const packageLabel = meta.packageLabel;
     fetch(`${PROXY_BASE}/proxy/device-shipments/upload`, {
       method: 'POST',
       headers: teamCodeHeaders({'Content-Type': 'application/json'}),
@@ -1787,10 +1789,20 @@ async function runAnalysis() {
   const fwVersion=document.getElementById('fw_version').value.trim();
   if (!topicUrl) { logLine('Please enter a topic URL.','lerr'); if(btn)btn.disabled=false; return; }
   if (!nodebbKey) { logLine('Community API key missing — check Settings.','lerr'); if(btn)btn.disabled=false; return; }
+  const packageLabelRaw=document.getElementById('package_label').value.trim();
+  if (!packageLabelRaw) {
+    // Deliberately NOT defaulting this to today's date: this label is what
+    // the auto-scan later matches against the QA Pack forum's month (e.g.
+    // "QA Pack July 2026"), so guessing "today" silently mislabels every
+    // shipment/scan saved from this run and makes that pack invisible to
+    // the auto-scan forever (it did exactly this before this fix).
+    logLine('Please enter the Package month (the QA Pack forum\'s month, e.g. "July 2026") — this is used to match this scan to the right pack later.','lerr');
+    if(btn)btn.disabled=false; return;
+  }
   try {
     const {id:topicId,name:inferred}=parseUrl(topicUrl);
     const deviceName=document.getElementById('device_name').value.trim()||inferred;
-    const packageLabel=document.getElementById('package_label').value.trim()||new Date().toLocaleString('en-US',{month:'long',year:'numeric'});
+    const packageLabel=packageLabelRaw;
     const devicesSent=parseInt(document.getElementById('devices_sent').value.trim())||null;
     meta={deviceName,packageLabel,fwVersion,topicUrl,topicId,postCount:0,devicesSent};
     setProgress(2,'Fetching feedback posts...');
@@ -2129,8 +2141,18 @@ function downloadLogistics() {
 async function saveLogisticsToHistory() {
   const rows = window._logiShipmentRows;
   if (!rows || !rows.length) return;
-  const packageLabel = document.getElementById('logi-package-label').value.trim() || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const packageLabel = document.getElementById('logi-package-label').value.trim();
   const statusEl = document.getElementById('logi-save-status');
+  if (!packageLabel) {
+    // Deliberately NOT defaulting this to today's date -- that silently
+    // mislabels every shipment with whatever day someone happened to
+    // upload the file, instead of the QA Pack's actual month, which makes
+    // the auto-scan unable to ever match these shipments to the right
+    // forum topic (this is exactly what caused the Camera/July 2026 pack
+    // to be invisible to participation checks).
+    statusEl.textContent = '⚠️ Enter the Package label above (the QA Pack forum\'s month, e.g. "QA Pack July 2026") before this can be saved to history.';
+    return;
+  }
   statusEl.textContent = '💾 Saving to Participation history...';
   try {
     const r = await fetch(`${PROXY_BASE}/proxy/device-shipments/upload`, {
