@@ -1566,15 +1566,34 @@ async function handleExcelFile(file) {
   }
 }
 
-function matchesNickname(nickLower, set) {
-  if (!nickLower) return false;
-  if (set.has(nickLower)) return true;
-  if (nickLower.length <= 2) return false;
-  const stripped = nickLower.replace(/[\s._-]/g,'');
-  for (const c of set) {
-    if (c === nickLower || c.replace(/[\s._-]/g,'') === stripped) return true;
+// Finds the entry in `keys` (an iterable of lowercased usernames) that
+// matches `nickLower`, tolerating punctuation/spacing differences (e.g.
+// "B. van de Vijver" vs "bob@drenso.nl"'s forum name "Drenso"). Returns
+// the matched key, or null. Shared by matchesNickname (just wants a
+// yes/no) and lastPostForNickname (wants to look up a value by that key).
+function findNicknameKey(nickLower, keys) {
+  if (!nickLower) return null;
+  if (nickLower.length > 2) {
+    const stripped = nickLower.replace(/[\s._-]/g,'');
+    for (const c of keys) {
+      if (c === nickLower || c.replace(/[\s._-]/g,'') === stripped) return c;
+    }
+  } else {
+    for (const c of keys) { if (c === nickLower) return c; }
   }
-  return false;
+  return null;
+}
+function matchesNickname(nickLower, set) {
+  return findNicknameKey(nickLower, set) !== null;
+}
+// Given a map of {usernameLower: latestPostDateString} (built by
+// forumUserLastPostMap), finds the real forum post date for `nickLower`
+// using the same fuzzy matching as participation itself -- so "Last
+// active" can show when someone actually posted, not just when we ran
+// the check.
+function lastPostForNickname(nickLower, postDateMap) {
+  const key = findNicknameKey(nickLower, Object.keys(postDateMap));
+  return key ? postDateMap[key] : null;
 }
 
 function renderApplicants(rows, forumUsernames) {
@@ -1628,11 +1647,15 @@ function renderApplicants(rows, forumUsernames) {
       const nickname = nicknameKey ? String(row[nicknameKey]??'').trim() : '';
       const nickLower = nickname.toLowerCase();
       const isActive = matchesNickname(nickLower, feedbackSet) || matchesNickname(nickLower, orderingSet);
+      const fbDate = lastPostForNickname(nickLower, window._feedbackLastPost || {});
+      const ordDate = lastPostForNickname(nickLower, window._orderingLastPost || {});
+      const lastPostAt = [fbDate, ordDate].filter(Boolean).sort().pop() || null;
       return {
         nickname,
         email: emailKey ? String(row[emailKey]??'') : '',
         full_name: String(row[nameKey]??''),
         status: isActive ? 'active' : 'no_posts',
+        last_post_at: lastPostAt,
       };
     });
     fetch(`${PROXY_BASE}/proxy/external-qa/scan`, {
@@ -1746,6 +1769,23 @@ function forumUsersFromPosts(posts) {
   return [...new Set(posts.map(p => p.author?.name || p.author?.displayName || '').filter(Boolean))];
 }
 
+// Maps each commenter (lowercased username) to the date of their MOST
+// RECENT post in this batch, straight from the forum's own post
+// timestamps -- not from when we happened to run a scan. Raw IPS post
+// objects carry a "date" field (see simplify_post() server-side, which
+// reads the same field) looking like "2026-07-07T16:29:52-05:00" or
+// similar; falls back to any string-sortable "date" value as-is.
+function forumUserLastPostMap(posts) {
+  const map = {};
+  posts.forEach(p => {
+    const name = (p.author?.name || p.author?.displayName || '').toLowerCase().trim();
+    const date = p.date || '';
+    if (!name || !date) return;
+    if (!map[name] || date > map[name]) map[name] = date;
+  });
+  return map;
+}
+
 async function fetchAllQaTopics(apiKey) {
   // Same source Home uses, but with all=1 so Ordering-process topics
   // (which /proxy/qa-active-topics normally filters out entirely) come
@@ -1853,13 +1893,15 @@ async function runAnalysis() {
           logLine('No matching Ordering topic found automatically — paste one above if you know it exists.','linf');
         }
       }
+      let orderingPosts = [];
       if (orderingTopic) {
-        const orderingPosts = await fetchPosts(orderingTopic.id, nodebbKey);
+        orderingPosts = await fetchPosts(orderingTopic.id, nodebbKey);
         orderingUsers = forumUsersFromPosts(orderingPosts);
         orderingTopicMeta = { ...orderingTopic, postCount: orderingPosts.length };
         logLine(`Fetched ${orderingPosts.length} Ordering-topic posts — ${orderingUsers.length} unique commenters`,'linf');
         logLine(`Ordering commenters: ${orderingUsers.length ? orderingUsers.slice().sort().join(', ') : '(none)'}`,'linf');
       }
+      window._orderingLastPost = forumUserLastPostMap(orderingPosts);
     } catch (e) {
       logLine('Could not check the Ordering topic: '+e.message,'lerr');
     }
@@ -1868,6 +1910,10 @@ async function runAnalysis() {
     window._feedbackForumUsernames = feedbackUsers;
     window._orderingForumUsernames = orderingUsers;
     window._forumUsernames = [...new Set([...feedbackUsers, ...orderingUsers])];
+    // Real forum post dates (not scan-run dates) for "Last active" --
+    // see renderApplicants()'s participants.map() below.
+    window._feedbackLastPost = forumUserLastPostMap(posts);
+    window._orderingLastPost = window._orderingLastPost || {};
     meta.orderingTopic = orderingTopicMeta;
 
     // Full debug dump, topic by topic, so participation can be checked
@@ -2403,6 +2449,7 @@ async function autoScanParticipation() {
         const feedbackId = parseUrl(ft.url).id;
         const feedbackPosts = await fetchPosts(feedbackId, apiKey);
         const feedbackUsers = forumUsersFromPosts(feedbackPosts);
+        const feedbackLastPost = forumUserLastPostMap(feedbackPosts);
         // Small pause between topics (on top of fetchPosts' own per-page
         // pause and 429 retry/backoff) -- scanning now covers a much wider
         // month window and isn't restricted by package_label any more, so
@@ -2411,10 +2458,11 @@ async function autoScanParticipation() {
         await new Promise(res => setTimeout(res, 400));
 
         const orderingMatch = orderingTopics.find(t => bestDeviceMatch(t.title, [device]) === device);
-        let orderingUsers = [];
+        let orderingUsers = [], orderingLastPost = {};
         if (orderingMatch) {
           const orderingPosts = await fetchPosts(parseUrl(orderingMatch.url).id, apiKey);
           orderingUsers = forumUsersFromPosts(orderingPosts);
+          orderingLastPost = forumUserLastPostMap(orderingPosts);
           await new Promise(res => setTimeout(res, 400));
         }
 
@@ -2433,7 +2481,13 @@ async function autoScanParticipation() {
         const participants = [...seenPeople.values()].map(s => {
           const nickLower = (s.nickname || '').toLowerCase().trim();
           const isActive = matchesNickname(nickLower, feedbackSet) || matchesNickname(nickLower, orderingSet);
-          return { nickname: s.nickname || '', email: s.email || '', full_name: s.full_name || '', status: isActive ? 'active' : 'no_posts' };
+          // The actual date they posted, straight from the forum -- not
+          // today's scan date. Take the later of their Feedback/Ordering
+          // post if they commented in both.
+          const fbDate = lastPostForNickname(nickLower, feedbackLastPost);
+          const ordDate = lastPostForNickname(nickLower, orderingLastPost);
+          const lastPostAt = [fbDate, ordDate].filter(Boolean).sort().pop() || null;
+          return { nickname: s.nickname || '', email: s.email || '', full_name: s.full_name || '', status: isActive ? 'active' : 'no_posts', last_post_at: lastPostAt };
         });
 
         if (participants.length) {
