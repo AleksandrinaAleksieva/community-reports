@@ -1052,7 +1052,7 @@ async function loadHomeTopics() {
       if (or.ok) ((await or.json()).owners || []).forEach(o => { homeOwners[o.topic_id] = o; });
       else ownersErr = teamCodeErrorMsg(or.status);
     } catch (e) { ownersErr = e.message; }
-    months.forEach(m => m.results.forEach(t => { homeTopicInfo[t.id] = { title: t.title }; }));
+    months.forEach(m => m.results.forEach(t => { homeTopicInfo[t.id] = { title: t.title, url: t.url, month: m.label }; }));
 
     container.innerHTML = months.map(m => `
       <div style="padding:4px 20px 8px">
@@ -1061,7 +1061,7 @@ async function loadHomeTopics() {
           ${m.results.map(t => {
             const replies = t.replies || 0;
             const lastPost = t.lastPost?.date ? new Date(t.lastPost.date).toLocaleDateString('en-GB') : '—';
-            return `<div class="topic-card" onclick="useTopicUrl('${t.url}')">
+            return `<div class="topic-card" onclick="useHomeTopic(${Number(t.id)})">
               <div class="topic-name">${t.title}</div>
               <div class="topic-meta">
                 <span class="badge-new badge-active">● Active</span>
@@ -1132,10 +1132,34 @@ async function editTopicOwner(topicId) {
   } catch (e) { alert('Could not save: ' + e.message); }
 }
 
+// Clicking a topic card on Home: fill in EVERYTHING for that topic and wipe
+// whatever the previous analysis left in the form (before, only the URL was
+// replaced, so the old device name stuck and the report/Confluence page came
+// out for the previous device).
+function useHomeTopic(topicId) {
+  const t = homeTopicInfo[topicId];
+  if (!t) return;
+  resetAnalyzeForm();
+  document.getElementById('device_name').value = String(t.title || '').replace(/\s*[-–]\s*feedback.*/i, '').trim();
+  document.getElementById('package_label').value = t.month && t.month !== 'Custom' ? t.month : '';
+  useTopicUrl(t.url);
+}
+
+// Empty every per-topic input and the previous run's publish/result state.
+function resetAnalyzeForm() {
+  ['topic_url','ordering_topic_url','device_name','package_label','fw_version','devices_sent'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  analysis = null; meta = {};
+  const btn = document.getElementById('conf-btn'); if (btn) { btn.disabled = false; btn.textContent = 'Publish to Confluence'; }
+  const ol = document.getElementById('conf-open-link'); if (ol) { ol.style.display = 'none'; ol.href = '#'; }
+  const cr = document.getElementById('conf-result'); if (cr) { cr.style.display = 'none'; cr.innerHTML = ''; }
+}
+
 function useTopicUrl(url) {
   document.getElementById('topic_url').value = url;
   goPage('analyze', document.querySelectorAll('.nav-item')[1]);
-  toast('Topic URL loaded — click Analyze to start');
+  toast('Topic loaded (device and package filled in) — add firmware / devices sent if needed, then click Analyze');
 }
 
 function updateHomeStats() {
@@ -1981,6 +2005,9 @@ async function runAnalysis() {
   setProgress(0,'Starting...');
   if (btn) btn.disabled=true;
   analysis=null;
+  { const cb=document.getElementById('conf-btn'); if (cb) { cb.disabled=false; cb.textContent='Publish to Confluence'; }
+    const ol=document.getElementById('conf-open-link'); if (ol) { ol.style.display='none'; ol.href='#'; }
+    const cr=document.getElementById('conf-result'); if (cr) { cr.style.display='none'; cr.innerHTML=''; } }
   const topicUrl=document.getElementById('topic_url').value.trim();
   const orderingUrlInput=document.getElementById('ordering_topic_url').value.trim();
   const nodebbKey=document.getElementById('nodebb_key').value.trim();
