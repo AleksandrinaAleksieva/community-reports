@@ -1043,6 +1043,17 @@ async function loadHomeTopics() {
     const totalTopics = months.reduce((n, m) => n + m.results.length, 0);
     document.getElementById('stat-topics').textContent = totalTopics;
 
+    // Responsible persons (nightly e-mail recipients) per topic. Needs the
+    // team access code; without it the cards just show a hint instead.
+    homeOwners = {}; homeTopicInfo = {};
+    let ownersErr = '';
+    try {
+      const or = await fetch(`${PROXY_BASE}/proxy/topic-owners`, { headers: teamCodeHeaders() });
+      if (or.ok) ((await or.json()).owners || []).forEach(o => { homeOwners[o.topic_id] = o; });
+      else ownersErr = teamCodeErrorMsg(or.status);
+    } catch (e) { ownersErr = e.message; }
+    months.forEach(m => m.results.forEach(t => { homeTopicInfo[t.id] = { title: t.title }; }));
+
     container.innerHTML = months.map(m => `
       <div style="padding:4px 20px 8px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 10px">${m.label}</div>
@@ -1060,6 +1071,7 @@ async function loadHomeTopics() {
                 <span class="topic-stat posts">💬 ${replies} replies</span>
               </div>
               <div style="font-size:11px;color:var(--blue);margin-top:4px">Click to analyze →</div>
+              ${ownerChipHtml(t.id, ownersErr)}
             </div>`;
           }).join('')}
         </div>
@@ -1067,6 +1079,57 @@ async function loadHomeTopics() {
   } catch(e) {
     container.innerHTML = `<div class="fb-empty">Could not load topics: ${e.message}</div>`;
   }
+}
+
+// ── Responsible person per topic (nightly e-mail recipients) ─────────────────
+let homeOwners = {};      // topic_id -> {emails: [...]}
+let homeTopicInfo = {};   // topic_id -> {title}
+
+function ownerChipHtml(topicId, err) {
+  if (err) return `<div class="owner-chip" title="${escHtml(err)}" style="margin-top:6px;font-size:11px;color:var(--muted)">✉ Responsible: unavailable (${escHtml(err)})</div>`;
+  const o = homeOwners[topicId];
+  const label = o && o.emails.length
+    ? `✉ ${escHtml(o.emails.join(', '))}`
+    : '✉ Add responsible person';
+  const color = o && o.emails.length ? 'var(--text)' : 'var(--muted)';
+  return `<div class="owner-chip" onclick="event.stopPropagation();editTopicOwner(${Number(topicId)})"
+    title="Nightly updates for this topic are e-mailed to this address. Leave empty to send nothing."
+    style="margin-top:6px;font-size:12px;color:${color};border-top:1px dashed var(--border);padding-top:6px;cursor:pointer;word-break:break-all">${label}</div>`;
+}
+
+// Same device-name rule as daily_qa.py ("Shelly X - Feedback" -> "Shelly X").
+function topicDeviceName(title) {
+  return String(title || '').replace(/\s*[-–]\s*feedback.*/i, '').trim().toLowerCase();
+}
+
+async function editTopicOwner(topicId) {
+  const info = homeTopicInfo[topicId] || { title: '' };
+  const current = (homeOwners[topicId]?.emails || []);
+  let initial = current.join(', ');
+  let hint = '';
+  if (!initial) {
+    // Same device in another month's pack? Offer its owner as the default.
+    const dev = topicDeviceName(info.title);
+    const prev = Object.values(homeOwners).find(o => topicDeviceName(o.title) === dev && o.emails.length);
+    if (prev) { initial = prev.emails.join(', '); hint = '\n(prefilled from a previous month — confirm with OK)'; }
+  }
+  const input = prompt(
+    `Responsible person for:\n${info.title}\n\nE-mail address(es), separated by commas. Nightly updates for this topic will be sent there. Leave empty to turn e-mails off for this topic.${hint}`,
+    initial);
+  if (input === null) return;   // cancelled
+  try {
+    const r = await fetch(`${PROXY_BASE}/proxy/topic-owners`, {
+      method: 'POST',
+      headers: teamCodeHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ topic_id: topicId, title: info.title, emails: input })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(data.error || teamCodeErrorMsg(r.status)); return; }
+    if (data.emails.length) homeOwners[topicId] = { topic_id: topicId, title: info.title, emails: data.emails };
+    else delete homeOwners[topicId];
+    toast(data.emails.length ? 'Responsible person saved' : 'E-mails turned off for this topic');
+    loadHomeTopics();
+  } catch (e) { alert('Could not save: ' + e.message); }
 }
 
 function useTopicUrl(url) {
