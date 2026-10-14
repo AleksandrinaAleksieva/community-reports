@@ -812,6 +812,19 @@ th.sortable:hover{color:var(--text)}
   </div>
 </div>
 
+<div class="overlay" id="topics-modal-overlay">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-hdr">
+      <span class="modal-hdr-title" id="topics-modal-title">Tracked topics</span>
+      <button class="modal-close" onclick="closeTopicsModal()">×</button>
+    </div>
+    <div class="modal-body" id="topics-modal-body"></div>
+    <div class="modal-ftr">
+      <button class="btn btn-secondary" onclick="closeTopicsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1500,6 +1513,62 @@ function showPreview() {
 }
 function closePreview() { document.getElementById('preview-overlay').classList.remove('open'); }
 
+// ── Confluence folders ────────────────────────────────────────────────────────
+// Manually published reports go in a per-month container page ("October 2026")
+// under External QA Reports; it's created the first time a report for that
+// month is published. (Scheduled reports are collected by daily_qa.py in a
+// separate "Scheduled reports" container.)
+const _CONF_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// "QA Pack October 2026", "october 2026", "Oct 2026" -> "October 2026";
+// null if no month + year can be found (caller then skips the folder).
+function confMonthFolderTitle(label) {
+  const s = String(label || '');
+  const y = s.match(/\b(20\d{2})\b/);
+  if (!y) return null;
+  const idx = _CONF_MONTHS.findIndex(m => new RegExp(`\\b(?:${m}|${m.slice(0, 3)}|sept)\\b`.replace('|sept', m === 'September' ? '|sept' : ''), 'i').test(s));
+  return idx === -1 ? null : `${_CONF_MONTHS[idx]} ${y[1]}`;
+}
+
+async function confFindChild(proxy, headers, title, parentId) {
+  const safe = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const cql = `parent = ${parentId} AND title = "${safe}" AND type = page`;
+  const r = await fetch(`${proxy}/content/search?cql=${encodeURIComponent(cql)}&limit=1`, { headers });
+  if (!r.ok) return null;
+  return (await r.json()).results?.[0]?.id || null;
+}
+
+// Returns the id of the container page `title` under parentId, creating it
+// if missing. Tries a second name if the plain one is already taken by an
+// unrelated page elsewhere in the space (page titles are unique per space).
+async function confGetOrCreateFolder(proxy, headers, space, title, parentId) {
+  const candidates = [title, `External QA — ${title}`];
+  for (const t of candidates) {
+    const found = await confFindChild(proxy, headers, t, parentId);
+    if (found) return found;
+  }
+  const body = `<p>Ръчно публикувани отчети за ${title}.</p><ac:structured-macro ac:name="children"><ac:parameter ac:name="sort">title</ac:parameter></ac:structured-macro>`;
+  for (const t of candidates) {
+    const r = await fetch(`${proxy}/content`, { method: 'POST', headers, body: JSON.stringify({
+      type: 'page', title: t, space: { key: space }, ancestors: [{ id: parentId }],
+      body: { storage: { value: body, representation: 'storage' } } }) });
+    if (r.ok) return (await r.json()).id;
+  }
+  return null;
+}
+
+// No-op if the page is already a direct child of targetId. Non-fatal: if the
+// move fails the page just stays where it is.
+async function confMoveUnder(proxy, headers, pageId, targetId) {
+  try {
+    const r = await fetch(`${proxy}/content/${pageId}?expand=ancestors`, { headers });
+    if (!r.ok) return;
+    const anc = (await r.json()).ancestors || [];
+    if (anc.length && String(anc[anc.length - 1].id) === String(targetId)) return;
+    await fetch(`${proxy}/content/${pageId}/move/append/${targetId}`, { method: 'PUT', headers });
+  } catch (e) { /* leave the page where it is */ }
+}
+
 async function publishConfluence() {
   if (!analysis) { alert('Run analysis first.'); return; }
   const SPACE='TTC', PARENT='2574516248', PROXY=`${PROXY_BASE}/confluence`;
@@ -1516,12 +1585,20 @@ async function publishConfluence() {
     const search=await fetch(`${PROXY}/content?title=${encodeURIComponent(title)}&spaceKey=${SPACE}&expand=version`,{headers});
     const sData=await search.json();
     const existing=sData.results?.[0];
+    // Month container ("October 2026") under External QA Reports; created
+    // on first use. If the label has no recognisable month/year, or the
+    // folder can't be created, publish directly under the parent as before.
+    const folderTitle=confMonthFolderTitle(packageLabel);
+    const folderId=folderTitle ? await confGetOrCreateFolder(PROXY,headers,SPACE,folderTitle,PARENT) : null;
+    const parentForPage=folderId||PARENT;
     let pageId;
     if (existing) {
       await fetch(`${PROXY}/content/${existing.id}`,{method:'PUT',headers,body:JSON.stringify({version:{number:existing.version.number+1},title,type:'page',body:{storage:{value:body,representation:'storage'}}})});
       pageId=existing.id;
+      // Re-publishing a page that predates folders: pull it into the month folder.
+      if (folderId) await confMoveUnder(PROXY,headers,pageId,folderId);
     } else {
-      const cr=await fetch(`${PROXY}/content`,{method:'POST',headers,body:JSON.stringify({type:'page',title,space:{key:SPACE},ancestors:[{id:PARENT}],body:{storage:{value:body,representation:'storage'}}})});
+      const cr=await fetch(`${PROXY}/content`,{method:'POST',headers,body:JSON.stringify({type:'page',title,space:{key:SPACE},ancestors:[{id:parentForPage}],body:{storage:{value:body,representation:'storage'}}})});
       pageId=(await cr.json()).id;
     }
     const pageUrl=`https://shellyusa.atlassian.net/wiki/spaces/${SPACE}/pages/${pageId}`;
@@ -2278,11 +2355,48 @@ function statsFmtDate(iso) {
   return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function statsTopicsCell(topics) {
+function statsTopicsCell(topics, personLabel) {
   if (!topics || !topics.length) return '—';
   const n = topics.length;
   const titleAttr = topics.map(t => `${t.topic_title || 'Untitled'} (${t.status === 'active' ? 'active' : 'no post'})`).join('\n');
-  return `<span title="${titleAttr.replace(/"/g, '&quot;')}" style="cursor:help;border-bottom:1px dotted var(--muted)">${n} topic${n !== 1 ? 's' : ''}</span>`;
+  // Hover still gives a quick summary; click opens the full per-topic
+  // breakdown (status + when) in a modal, since the tooltip gets
+  // unreadable once someone's tracked across a dozen+ packs.
+  const encodedTopics = encodeURIComponent(JSON.stringify(topics));
+  const encodedPerson = encodeURIComponent(personLabel || '');
+  return `<span title="${titleAttr.replace(/"/g, '&quot;')}" data-topics="${encodedTopics}" data-person="${encodedPerson}" onclick="openTopicsModal(this)" style="cursor:pointer;border-bottom:1px dotted var(--blue);color:var(--blue);font-weight:600">${n} topic${n !== 1 ? 's' : ''}</span>`;
+}
+
+function openTopicsModal(el) {
+  let topics = [];
+  try { topics = JSON.parse(decodeURIComponent(el.dataset.topics || '[]')); } catch (e) { topics = []; }
+  const person = decodeURIComponent(el.dataset.person || '');
+
+  const sorted = topics.slice().sort((a, b) => (b.scanned_at || '').localeCompare(a.scanned_at || ''));
+  const rowsHtml = sorted.map(t => {
+    const isActive = t.status === 'active';
+    // Show the real forum post date when we have one (see
+    // forumUserLastPostMap); older scans saved before that existed only
+    // have the scan-run date, so fall back to that and label it as such
+    // rather than implying it's a post date it isn't.
+    const hasPostDate = isActive && !!t.last_post_at;
+    const dateLabel = hasPostDate ? 'Posted' : 'Checked';
+    const dateStr = statsFmtDate(hasPostDate ? t.last_post_at : t.scanned_at);
+    return `<tr>
+      <td>${escHtml(t.topic_title || 'Untitled')}</td>
+      <td style="text-align:center"><span style="font-weight:700;color:${isActive ? 'var(--green)' : 'var(--red)'}">${isActive ? 'Active' : 'No posts'}</span></td>
+      <td style="color:var(--muted)">${dateLabel}: ${dateStr}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('topics-modal-title').textContent = `${person ? person + ' — ' : ''}${topics.length} tracked topic${topics.length !== 1 ? 's' : ''}`;
+  document.getElementById('topics-modal-body').innerHTML = topics.length
+    ? `<table><thead><tr><th>Topic</th><th style="text-align:center">Status</th><th>When</th></tr></thead><tbody>${rowsHtml}</tbody></table>`
+    : `<div class="fb-empty">No topics tracked yet.</div>`;
+  document.getElementById('topics-modal-overlay').classList.add('open');
+}
+function closeTopicsModal() {
+  document.getElementById('topics-modal-overlay').classList.remove('open');
 }
 
 function statsPeopleTable(people, emptyMsg) {
@@ -2295,7 +2409,7 @@ function statsPeopleTable(people, emptyMsg) {
     <td style="padding:9px 12px;font-size:12px;color:var(--blue)">${p.nickname || '—'}</td>
     <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${p.email || '—'}</td>
     <td style="padding:9px 12px;font-size:12px;text-align:center">${p.scans_appeared}</td>
-    <td style="padding:9px 12px;font-size:12px;text-align:center">${statsTopicsCell(p.topics)}</td>
+    <td style="padding:9px 12px;font-size:12px;text-align:center">${statsTopicsCell(p.topics, p.full_name || p.nickname || '')}</td>
     <td style="padding:9px 12px;font-size:12px;text-align:center;font-weight:700;color:${p.participation_rate>=70?'var(--green)':p.participation_rate>=40?'var(--amber)':'var(--red)'}">${p.participation_rate}%</td>
     <td style="padding:9px 12px;font-size:12px;color:var(--muted)">${statsFmtDate(p.last_active_at)}</td>
     <td style="padding:6px 8px"><input type="text" class="stats-note-input" data-person-key="${escHtml(p.person_key)}" value="${escHtml(note)}" placeholder="Add a note…" onchange="saveNote(this)"></td>
