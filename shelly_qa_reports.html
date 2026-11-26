@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shelly Community Reports</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -677,6 +678,7 @@ th.sortable:hover{color:var(--text)}
             <button class="btn btn-primary" id="logi-download-btn" onclick="downloadLogistics()" disabled>⬇ Download logistics .xlsx</button>
           </div>
         </div>
+        <p class="hint" style="margin-top:6px">The downloaded file always starts with four yellow rows (Integrators, Installators, Heinz Heymann, Douglas Roberson) to fill in by hand — they are not saved to Dispatched devices.</p>
         <p class="hint" style="margin-top:6px">Uploaded rows are saved to Dispatched devices automatically — re-uploading the same data (or the same person+device from a Community upload) just updates it, it won't duplicate.</p>
         <div id="logi-totals" style="margin-top:14px"></div>
         <div id="logi-preview" style="margin-top:14px"></div>
@@ -2353,20 +2355,71 @@ function logiOnPackageLabelChange() {
   if (window._logiShipmentRows && window._logiShipmentRows.length) saveLogisticsToHistory();
 }
 
-function downloadLogistics() {
-  if (!_logiConverted || !_logiConverted.length) return;
-  const HEADERS = ['Name','Forum Nickname','Country','City, Postal Code','Address','Phone Number','|','Tracking number','E-mail','SAP BP ID','SAP SO','SAP OBD','SAP INV'];
-  const aoa = [HEADERS, ...(_logiConverted.map(r => HEADERS.map(h => r[h] ?? '')))];
+// Rows that are ALWAYS at the top of the downloaded logistics file, highlighted
+// yellow. They are not part of the ordering form: the empty cells are for the
+// team to fill in by hand afterwards. Integrators / Installators only get a
+// Name (with the quantity/percentage in brackets). Heinz Heymann and Douglas
+// Roberson get their full contact details; if they also ordered through the
+// form, their own form rows stay in the normal list below.
+const LOGI_HEADERS = ['Name','Forum Nickname','Country','City, Postal Code','Address','Phone Number','|','Tracking number','E-mail','SAP BP ID','SAP SO','SAP OBD','SAP INV'];
+const LOGI_TOP_ROWS = [
+  { 'Name': 'Integrators (1pc)' },
+  { 'Name': 'Installators (5%)' },
+  { 'Name': 'Heinz Heymann (10%)', 'Forum Nickname': 'x', 'Country': 'Germany',
+    'City, Postal Code': '81669 München', 'Address': 'St.-Cajetan-Str. 41',
+    'Phone Number': '+49 89 1500 18490', 'E-mail': 'heinz.heymann@shelly.com' },
+  { 'Name': 'Douglas Roberson (10%)', 'Forum Nickname': 'Doug Roberson', 'Country': 'USA',
+    'City, Postal Code': 'Boca Raton, FL, 33433', 'Address': '6901 Calle Del Paz N',
+    'Phone Number': '1-702-355-5809', 'E-mail': 'douglas.roberson@shelly.com' },
+];
+
+// Pure: the sheet as an array of rows, plus which row indexes are the yellow ones.
+function logiBuildSheet(converted, totals) {
+  const aoa = [LOGI_HEADERS];
+  const highlightRows = [];
+  LOGI_TOP_ROWS.forEach(r => { highlightRows.push(aoa.length); aoa.push(LOGI_HEADERS.map(h => r[h] ?? '')); });
+  converted.forEach(r => aoa.push(LOGI_HEADERS.map(h => r[h] ?? '')));
   aoa.push([]);
   aoa.push(['TOTALS']);
-  Object.entries(_logiTotals).forEach(([dev, t]) => {
+  Object.entries(totals).forEach(([dev, t]) => {
     aoa.push([dev, t.count]);
     Object.entries(t.colors).forEach(([c, n]) => aoa.push(['   ' + c, n]));
   });
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Logistics');
-  XLSX.writeFile(wb, 'QA_Pack_Logistics.xlsx', { bookType: 'xlsx', cellStyles: true });
+  return { aoa, highlightRows };
+}
+
+// ExcelJS (not SheetJS) writes the workbook: the free SheetJS build silently
+// drops cell fills, and the yellow highlight is the whole point here.
+async function downloadLogistics() {
+  if (!_logiConverted || !_logiConverted.length) return;
+  const { aoa, highlightRows } = logiBuildSheet(_logiConverted, _logiTotals);
+  if (typeof ExcelJS === 'undefined') {
+    // Library failed to load (offline / blocked CDN): still deliver the data, just unhighlighted.
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Logistics');
+    XLSX.writeFile(wb, 'QA_Pack_Logistics.xlsx', { bookType: 'xlsx' });
+    toast('Downloaded WITHOUT the yellow highlighting (ExcelJS could not be loaded)', 6000);
+    return;
+  }
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Logistics');
+  aoa.forEach(r => ws.addRow(r));
+  ws.getRow(1).font = { bold: true };
+  [28,22,16,24,40,20,50,20,30,12,12,12,12].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  ws.getColumn(7).alignment = { wrapText: true, vertical: 'top' };
+  highlightRows.forEach(idx => {
+    const row = ws.getRow(idx + 1);
+    for (let c = 1; c <= LOGI_HEADERS.length; c++) {
+      row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    }
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'QA_Pack_Logistics.xlsx';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 async function saveLogisticsToHistory() {
